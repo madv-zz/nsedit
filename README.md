@@ -72,7 +72,9 @@ Development
 ===========
 
 `master` is protected: changes go through a pull request, and merging needs a green `check`
-(the CI in `.github/workflows/ci.yml`; force pushes and deleting `master` are blocked, also for admins).
+(the CI in `.github/workflows/ci.yml`) and a green `test-plan` (`.github/workflows/test-plan.yml`: every
+checkbox in the pull request description is ticked, see `ci/test-plan.py`; it runs again when the
+description is edited). Force pushes and deleting `master` are blocked, also for admins.
 CI runs on every pull request, on `master` and weekly, each check as its own job:
 
 | Job | What |

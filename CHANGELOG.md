@@ -169,7 +169,13 @@ without the fix (except the SOA serial of reverse zones, see below).
   the intended PowerDNS version really runs. All passed without changes to nsedit.
 - "Tested versions" table at the top of this changelog.
 
-## Step 9: tested on FreeBSD in jails; HTTP status under php-fpm
+## Step 9: the test plan of a pull request must be done
+
+- New workflow `test-plan` (`ci/test-plan.py`): fails while the description of a pull request has an
+  unticked checkbox, or has no test plan at all (bots such as Dependabot excepted). It runs again when the
+  description is edited, without starting the whole CI again. Required for merging, next to `check`.
+
+## Step 10: tested on FreeBSD in jails; HTTP status under php-fpm
 
 - Tested in a FreeBSD 15.1 VM with two jails: PowerDNS 5.1.5 and nginx + php-fpm 8.4 + nsedit. Smoke test
   and browser test pass, no PHP warnings. The setup is in `contrib/freebsd/` (`setup-jails.sh` for the jails,
@@ -184,9 +190,9 @@ without the fix (except the SOA serial of reverse zones, see below).
 
 ## Where it is now
 
-- Runs on PHP 8.4, 8.5 and 8.6 with PowerDNS Authoritative 5.0: the smoke test passes
-  all checks on all three versions, without any PHP warning or deprecation in the log.
-- Every change goes through a pull request with CI; `master` is protected.
+- Runs on PHP 8.4, 8.5 and 8.6 with PowerDNS Authoritative 4.9, 5.0 and 5.1: the smoke test and the
+  browser test pass on every combination, without any PHP warning or deprecation in the log.
+- Every change goes through a pull request with CI and a ticked test plan; `master` is protected.
 - Runs on FreeBSD in jails (nginx + php-fpm); reference setup in `contrib/freebsd/`.
 - jQuery 3.7.1, jQuery UI 1.14.2 and jTable 2.6.0 without known vulnerabilities; jTable itself is
   unmaintained, the browser test guards it.
