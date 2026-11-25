@@ -1,0 +1,15 @@
+# Left out of release tarballs (git archive) and GitHub's source archives: development, CI and Docker test files.
+/.github                export-ignore
+/ci                     export-ignore
+/tests                  export-ignore
+/docker                 export-ignore
+/pdns                   export-ignore
+/Dockerfile             export-ignore
+/docker-compose.yml     export-ignore
+/.dockerignore          export-ignore
+/.env.example           export-ignore
+/.trivyignore.yaml      export-ignore
+/.osv-ignore            export-ignore
+/phpstan.neon           export-ignore
+/phpstan-baseline.neon  export-ignore
+/.gitattributes         export-ignore

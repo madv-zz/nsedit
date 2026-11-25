@@ -2,6 +2,45 @@
 
 What changed in this fork, from where it started to where it is now.
 
+## v2.0.0 (2026-11-25)
+
+First release of this fork of [tuxis-ie/nsedit](https://github.com/tuxis-ie/nsedit) (upstream's last release is
+v1.1 from 2016). The details of every change are in the steps further down.
+
+**What it brings**
+
+- Runs on PHP 8.4, 8.5 and 8.6 and PowerDNS Authoritative 4.9, 5.0 and 5.1, without PHP warnings or
+  deprecations; tested on Debian, FreeBSD 15.1 (jails, nginx + php-fpm) and OpenBSD 8.0 (httpd + php-fpm in
+  a chroot), see *Tested versions*.
+- PowerDNS 5: cloning zones works again, "Set PTR Record" is done by nsedit itself (PowerDNS removed `set-ptr`).
+- Security: access check on every zone action, CSRF on the password form, escaped output, TLS verification
+  for WeFact, passwords always hashed; jQuery 3.7.1 and jQuery UI 1.14.2 without known vulnerabilities.
+- Tested reference setups for FreeBSD and OpenBSD in `contrib/`.
+
+**Requirements**
+
+- PHP 8.4 or newer with the extensions curl, sqlite3, session, filter and openssl (nsedit says which one is
+  missing). On the BSDs session and filter are separate packages.
+- PowerDNS Authoritative 4.4 or newer with the API enabled.
+
+**Upgrading from upstream nsedit**
+
+- Keep your `includes/config.inc.php` and the user database; their format did not change.
+- If your config sets `$logo = 'img/nsedit.png'`, change it to `img/nsedit.svg` or your own logo: the Tuxis
+  logo is no longer included.
+- "Remember me" cookies of the old version are no longer valid; users log in once more.
+- Errors for the web interface are always HTTP 200 with a JSON message (also under php-fpm); a wrong admin
+  API key gives HTTP 403.
+
+**Download and verify**
+
+```sh
+curl -LO https://github.com/madv-zz/nsedit/releases/download/v2.0.0/nsedit-2.0.0.tar.gz
+curl -LO https://github.com/madv-zz/nsedit/releases/download/v2.0.0/nsedit-2.0.0.tar.gz.sha256
+sha256sum -c nsedit-2.0.0.tar.gz.sha256          # FreeBSD/OpenBSD: sha256 -c or compare with sha256 -q
+gh attestation verify nsedit-2.0.0.tar.gz -R madv-zz/nsedit   # built by this repository's release workflow
+```
+
 ## Tested versions
 
 | Operating system | Web server | PHP | PowerDNS Authoritative | How |
@@ -198,11 +237,21 @@ without the fix (except the SOA serial of reverse zones, see below).
   latest repository has 5.1.5. Install PHP from one repository: with both enabled, pkg silently skipped an
   extension whose versions differed between them.
 
+## Step 11: release v2.0.0
+
+- `VERSION`, the `## v2.0.0` section at the top of this changelog (the release notes) and a release workflow:
+  a tag `v<version>` builds `nsedit-<version>.tar.gz` without the development files (`.gitattributes`
+  export-ignore), its SHA256 and a build provenance attestation, but only for a commit on which CI passed.
+- Ruleset "release tags": tags `v*` cannot be deleted or moved, also not by admins.
+- Pull request template: the test plan lists only what was checked by hand; no "CI green" item, CI is
+  enforced by the required `check`.
+
 ## Where it is now
 
 - Runs on PHP 8.4, 8.5 and 8.6 with PowerDNS Authoritative 4.9, 5.0 and 5.1: the smoke test and the
   browser test pass on every combination, without any PHP warning or deprecation in the log.
-- Every change goes through a pull request with CI and a ticked test plan; `master` is protected.
+- Every change goes through a pull request with CI and a ticked test plan; `master` and release tags are
+  protected; releases with a checked tarball from v2.0.0 on.
 - Runs on FreeBSD in jails (nginx + php-fpm); reference setup in `contrib/freebsd/`.
 - jQuery 3.7.1, jQuery UI 1.14.2 and jTable 2.6.0 without known vulnerabilities; jTable itself is
   unmaintained, the browser test guards it.
