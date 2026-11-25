@@ -34,32 +34,32 @@ class Zone {
     }
 
     public function parse($data) {
-        $this->setId($data['id']);
-        $this->setName($data['name']);
-        $this->setKind($data['kind']);
-        $this->setDnssec($data['dnssec']);
-        $this->setAccount($data['account']);
-        $this->setSerial($data['serial']);
-        $this->url = $data['url'];
+        $this->setId($data['id'] ?? '');
+        $this->setName($data['name'] ?? '');
+        $this->setKind($data['kind'] ?? '');
+        $this->setDnssec($data['dnssec'] ?? false);
+        $this->setAccount($data['account'] ?? '');
+        $this->setSerial($data['serial'] ?? '');
+        $this->url = $data['url'] ?? '';
         if (isset($data['soa_edit']) && $data['soa_edit'] != "")
             $this->setSoaEdit($data['soa_edit']);
         if (isset($data['soa_edit_api']) && $data['soa_edit_api'] != "")
             $this->setSoaEditApi($data['soa_edit_api'], True);
 
-        foreach ($data['masters'] as $master) {
+        foreach ($data['masters'] ?? array() as $master) {
             $this->addMaster($master);
         }
 
         if (isset($data['rrsets'])) {
             foreach ($data['rrsets'] as $rrset) {
                 $toadd = new RRSet($rrset['name'], $rrset['type']);
-                foreach ($rrset['comments'] as $comment) {
-                    $toadd->addComment($comment['content'], $comment['account'], $comment['modified_at']);
+                foreach ($rrset['comments'] ?? array() as $comment) {
+                    $toadd->addComment($comment['content'] ?? '', $comment['account'] ?? '', $comment['modified_at'] ?? false);
                 }
-                foreach ($rrset['records'] as $record) {
-                    $toadd->addRecord($record['content'], $record['disabled']);
+                foreach ($rrset['records'] ?? array() as $record) {
+                    $toadd->addRecord($record['content'], $record['disabled'] ?? false);
                 }
-                $toadd->setTtl($rrset['ttl']);
+                $toadd->setTtl($rrset['ttl'] ?? 3600);
                 array_push($this->rrsets, $toadd);
             }
         }
@@ -155,6 +155,9 @@ class Zone {
 
     public function getRecord($name, $type, $content) {
         $rrset = $this->getRRSet($name, $type);
+        if ($rrset === FALSE) {
+            return NULL;
+        }
         foreach ($rrset->exportRecords() as $record) {
             if ($record['content'] == $content) {
                 $record['name'] = $rrset->name;
@@ -166,6 +169,7 @@ class Zone {
             }
         }
 
+        return NULL;
     }
 
     public function getRRSet($name, $type) {
@@ -339,13 +343,12 @@ class Record {
     }
 
     public function export() {
-        $ret;
+        $ret = Array();
 
         $ret['content'] = $this->content;
         $ret['disabled'] = ( bool ) $this->disabled;
-        if ($this->setptr) {
-            $ret['set-ptr'] = ( bool ) TRUE;
-        }
+        # 'set-ptr' was removed from the PowerDNS API in 4.4; zones.php
+        # creates the PTR record itself (see set_ptr_record()).
 
         return $ret;
     }
@@ -363,7 +366,7 @@ class Comment {
     }
 
     public function export() {
-        $ret;
+        $ret = Array();
 
         $ret['content'] = $this->content;
         $ret['account'] = $this->account;

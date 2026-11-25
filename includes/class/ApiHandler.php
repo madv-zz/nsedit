@@ -1,6 +1,6 @@
 <?php
 
-include_once('includes/config.inc.php');
+include_once(__DIR__ . '/../config.inc.php');
 
 class ApiHandler {
     public $headers;
@@ -44,24 +44,25 @@ class ApiHandler {
 
         $tmp->url = '/api/v1/servers/localhost';
         $tmp->go();
-        
-        $this->apiurl = $tmp->json["url"];
+
+        if (!isset($tmp->json['url'])) {
+            throw new Exception("Unexpected answer from the PowerDNS API");
+        }
+        $this->apiurl = $tmp->json['url'];
     }
 
     private function curlopts() {
         $this->authheaders();
         $this->addheader('Accept', 'application/json');
 
-        if(defined('curl_reset')) {
-            curl_reset($this->curlh);
-        } else {
-            $this->curlh = curl_init();
-        }
-        curl_setopt($this->curlh, CURLOPT_HTTPHEADER, Array());
-        curl_setopt($this->curlh, CURLOPT_RETURNTRANSFER, 1);
+        curl_reset($this->curlh);
+        curl_setopt($this->curlh, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($this->curlh, CURLOPT_CONNECTTIMEOUT, 5);
+        curl_setopt($this->curlh, CURLOPT_TIMEOUT, 30);
 
-        if (strcasecmp($this->proto, 'https')) {
-            curl_setopt($this->curlh, CURLOPT_SSL_VERIFYPEER, $this->sslverify);
+        if (strcasecmp($this->proto, 'https') == 0) {
+            curl_setopt($this->curlh, CURLOPT_SSL_VERIFYPEER, (bool) $this->sslverify);
+            curl_setopt($this->curlh, CURLOPT_SSL_VERIFYHOST, $this->sslverify ? 2 : 0);
         }
 
         $setheaders = Array();
@@ -70,6 +71,12 @@ class ApiHandler {
             array_push($setheaders, join(": ", Array($k, $v)));
         }
         curl_setopt($this->curlh, CURLOPT_HTTPHEADER, $setheaders);
+    }
+
+    public function __clone() {
+        // every clone needs its own curl handle
+        $this->curlh = curl_init();
+        $this->headers = Array();
     }
 
     private function baseurl() {
@@ -83,20 +90,23 @@ class ApiHandler {
     }
 
     private function go() {
+        if ($this->content) {
+            // must be added before curlopts() sets the headers
+            $this->addheader('Content-Type', 'application/json');
+        }
+
         $this->curlopts();
 
         if ($this->content) {
-            $this->addheader('Content-Type', 'application/json');
-            curl_setopt($this->curlh, CURLOPT_POST, 1);
             curl_setopt($this->curlh, CURLOPT_POSTFIELDS, $this->content);
         }
 
         switch ($this->method) {
             case 'POST':
-                curl_setopt($this->curlh, CURLOPT_POST, 1);
+                curl_setopt($this->curlh, CURLOPT_POST, true);
                 break;
             case 'GET':
-                curl_setopt($this->curlh, CURLOPT_POST, 0);
+                curl_setopt($this->curlh, CURLOPT_HTTPGET, true);
                 break;
             case 'DELETE':
             case 'PATCH':
@@ -108,10 +118,13 @@ class ApiHandler {
         curl_setopt($this->curlh, CURLOPT_URL, $this->baseurl().$this->url);
 
         $return = curl_exec($this->curlh);
+        if ($return === false) {
+            throw new Exception("Could not connect to the PowerDNS API: ".curl_error($this->curlh));
+        }
         $code = curl_getinfo($this->curlh, CURLINFO_HTTP_CODE);
-        $json = json_decode($return, 1);
+        $json = ($return === '') ? null : json_decode($return, true);
 
-        if (isset($json['error'])) {
+        if (is_array($json) && isset($json['error'])) {
             throw new Exception("API Error $code: ".$json['error']);
         } elseif ($code < 200 || $code >= 300) {
             if ($code == 401) {

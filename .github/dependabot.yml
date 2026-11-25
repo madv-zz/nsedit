@@ -1,0 +1,22 @@
+# Version updates as pull requests; new versions only after 14 days (cooldown), like Renovate on Forgejo.
+# Security updates (Dependabot alerts) are not delayed.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 14
+  - package-ecosystem: docker
+    directories: ["/", "/pdns"]
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 14
+    ignore:
+      # PowerDNS: stay on 5.0.x until a new major/minor is tested on purpose
+      - dependency-name: powerdns/pdns-auth-50
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]

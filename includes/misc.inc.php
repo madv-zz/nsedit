@@ -1,6 +1,6 @@
 <?php
 
-include('config.inc.php');
+include_once('config.inc.php');
 
 $blocklogin = FALSE;
 
@@ -35,7 +35,7 @@ if (isset($defaults['primaryns'])) {
 }
 
 if (!isset($logo) or empty($logo)) {
-    $logo = 'https://www.tuxis.nl/uploads/images/nsedit.png';
+    $logo = 'img/nsedit.svg';
 }
 
 
@@ -61,14 +61,17 @@ $defaults['defaulttype'] = ucfirst(strtolower($defaults['defaulttype']));
 
 try {
     if (isset($authdb) && !file_exists($authdb) && class_exists('SQLite3')) {
-        is_dir(dirname($authdb)) || mkdir(dirname($authdb));
+        is_dir(dirname($authdb)) || mkdir(dirname($authdb), 0700, true);
         $db = new SQLite3($authdb, SQLITE3_OPEN_CREATE|SQLITE3_OPEN_READWRITE);
-        $createsql = file_get_contents('includes/scheme.sql');
+        $createsql = file_get_contents(__DIR__ . '/scheme.sql');
         $db->exec($createsql);
         $salt = bin2hex(openssl_random_pseudo_bytes(16));
         $default_admin_username = $default_admin_username ?? "admin";
         $default_admin_password = $default_admin_password ?? "admin";
-        $db->exec("INSERT INTO users (emailaddress, password, isadmin) VALUES ('".$default_admin_username."', '".crypt($default_admin_password, '$6$'.$salt)."', 1)");
+        $q = $db->prepare('INSERT INTO users (emailaddress, password, isadmin) VALUES (?, ?, 1)');
+        $q->bindValue(1, $default_admin_username, SQLITE3_TEXT);
+        $q->bindValue(2, crypt($default_admin_password, '$6$'.$salt), SQLITE3_TEXT);
+        $q->execute();
     }
 } catch (Exception $e) {
     print("We have issues getting the authdb working: $e");
@@ -134,7 +137,7 @@ function do_db_auth($u, $p) {
     $result = $q->execute();
     $userinfo = $result->fetchArray(SQLITE3_ASSOC);
 
-    if ($userinfo and $userinfo['password'] and (crypt($p, $userinfo['password']) === $userinfo['password'])) {
+    if ($userinfo and $userinfo['password'] and hash_equals($userinfo['password'], crypt($p, $userinfo['password']))) {
         return TRUE;
     }
 
@@ -166,7 +169,7 @@ function add_user($username, $isadmin = FALSE, $password = '') {
 }
 
 function update_user($id, $isadmin, $password) {
-    if ($password && !preg_match('/\$6\$/', $password)) {
+    if ($password && !string_starts_with($password, '$6$')) {
         $salt = bin2hex(openssl_random_pseudo_bytes(16));
         $password = crypt($password, '$6$'.$salt);
     }
@@ -238,15 +241,17 @@ function jtable_respond($records, $method = 'multiple', $msg = 'Undefined errorm
     } else {
         if (isset($_GET['jtPageSize'])) {
             $jTableResult['TotalRecordCount'] = count($records);
-            $records = array_slice($records, $_GET['jtStartIndex'], $_GET['jtPageSize']);
+            $records = array_slice($records, (int) ($_GET['jtStartIndex'] ?? 0), (int) $_GET['jtPageSize']);
         }
         $jTableResult['Result'] = "OK";
         $jTableResult['Records'] = $records;
         $jTableResult['RecordCount'] = count($records);
     }
 
-    $db = get_db();
-    $db->close();
+    global $db;
+    if (isset($db)) {
+        $db->close();
+    }
     header('Content-Type: application/json');
     print json_encode($jTableResult);
     exit(0);
@@ -255,9 +260,13 @@ function jtable_respond($records, $method = 'multiple', $msg = 'Undefined errorm
 function user_template_list() {
     global $templates;
 
+    if (!isset($templates) || !is_array($templates)) {
+        $templates = array();
+    }
+
     if (is_dir("templates.d")) {
         if ($templdir=opendir("templates.d")) {
-            while ($entry = readdir($templdir)) {
+            while (($entry = readdir($templdir)) !== false) {
                 if (!str_ends_with($entry, ".json")) {
                     continue;
                 }
@@ -273,6 +282,7 @@ function user_template_list() {
                 }
                 array_push($templates, $t);
             }
+            closedir($templdir);
         }
     }
 

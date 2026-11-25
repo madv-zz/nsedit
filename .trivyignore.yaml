@@ -1,0 +1,15 @@
+# Accepted findings of trivy (config and image scans), each with a reason and an expiry date.
+# Only findings without a fix in Debian yet; the images run `apt-get upgrade` for everything that has a fix.
+vulnerabilities:
+  - id: CVE-2026-6653
+    statement: libxml2 in php:*-apache, no Debian fix yet; the CVE is about mingw-libxml2 (Windows builds)
+    expired_at: 2027-02-25
+  - id: CVE-2019-16224
+    statement: liblmdb0 in the PowerDNS image, no Debian fix; the CVE is about the Python binding py-lmdb, not used here
+    expired_at: 2027-02-25
+  - id: CVE-2019-16225
+    statement: liblmdb0 in the PowerDNS image, no Debian fix; the CVE is about the Python binding py-lmdb, not used here
+    expired_at: 2027-02-25
+  - id: CVE-2019-16227
+    statement: liblmdb0 in the PowerDNS image, no Debian fix; the CVE is about the Python binding py-lmdb, not used here
+    expired_at: 2027-02-25

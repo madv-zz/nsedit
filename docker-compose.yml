@@ -1,0 +1,42 @@
+name: nsedit
+
+services:
+  pdns:
+    build: pdns
+    image: nsedit-pdns:local
+    restart: unless-stopped
+    environment:
+      PDNS_AUTH_API_KEY: ${PDNS_API_KEY:?set PDNS_API_KEY in .env}
+    volumes:
+      - pdns-data:/var/lib/powerdns
+    ports:
+      - "${DNS_BIND:-127.0.0.1}:${DNS_PORT:-1053}:53/udp"
+      - "${DNS_BIND:-127.0.0.1}:${DNS_PORT:-1053}:53/tcp"
+    # The API (8081) is only reachable on the internal network, not on the host
+
+  nsedit:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PHP_VERSION: ${PHP_VERSION:-8.4}
+    image: nsedit-php:${PHP_VERSION:-8.4}-local
+    restart: unless-stopped
+    depends_on: [pdns]
+    environment:
+      PDNS_API_KEY: ${PDNS_API_KEY}
+      PDNS_API_HOST: pdns
+      PDNS_API_PORT: "8081"
+      NSEDIT_ADMIN_USER: ${NSEDIT_ADMIN_USER:-admin}
+      NSEDIT_ADMIN_PASSWORD: ${NSEDIT_ADMIN_PASSWORD:?set NSEDIT_ADMIN_PASSWORD in .env}
+      NSEDIT_SECRET: ${NSEDIT_SECRET:-}
+      NSEDIT_NS1: ${NSEDIT_NS1:-ns1.example.com.}
+      NSEDIT_NS2: ${NSEDIT_NS2:-ns2.example.com.}
+    volumes:
+      - nsedit-data:/var/lib/nsedit
+    ports:
+      - "${WEB_BIND:-127.0.0.1}:${WEB_PORT:-8080}:8080"
+
+volumes:
+  pdns-data:
+  nsedit-data:
