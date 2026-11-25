@@ -262,6 +262,59 @@ function find_ptr_zone($api, $revname) {
     return $best;
 }
 
+# Move the records that fall inside a newly created zone out of its parent zone (the
+# most specific existing zone above it) into the new zone. Without this, records such as
+# the PTRs of a /56 that is split off a /32 become invisible: PowerDNS answers from the
+# new, empty zone. NS and DS records at the apex of the new zone stay in the parent
+# (they are the delegation). Only done when the user may change the parent zone.
+# Returns array(parent zone name or false, number of records moved).
+function move_records_from_parent($api, $zonename) {
+    $parentname = false;
+    foreach ($api->listzones() as $z) {
+        $zname = $z['name'] ?? '';
+        if ($zname == '' || $zname === $zonename || ($z['kind'] ?? '') == 'Slave') continue;
+        if (!string_ends_with($zonename, '.'.$zname)) continue;
+        if ($parentname === false || strlen($zname) > strlen($parentname)) {
+            $parentname = $zname;
+        }
+    }
+    if ($parentname === false) {
+        return array(false, 0);
+    }
+    $parent = new Zone();
+    $parent->parse($api->loadzone($parentname));
+    if ($parent->account == '') {
+        $parent->setAccount(get_zone_account($parentname, 'admin'));
+    }
+    if (!check_account($parent)) {
+        writelog("Records under $zonename not moved: no access to parent zone $parentname");
+        return array($parentname, 0);
+    }
+    $move = array();
+    $count = 0;
+    foreach ($parent->rrsets as $rrset) {
+        if ($rrset->name !== $zonename && !string_ends_with($rrset->name, '.'.$zonename)) continue;
+        if ($rrset->name === $zonename && in_array($rrset->type, array('SOA', 'NS', 'DS'), true)) continue;
+        $move[] = $rrset;
+        $count += count($rrset->records);
+    }
+    if (!$move) {
+        return array($parentname, 0);
+    }
+    # first add them to the new zone; only when that worked, remove them from the parent
+    $child = new Zone();
+    $child->parse($api->loadzone($zonename));
+    $child->rrsets = $move;
+    $api->savezone($child->export());
+    foreach ($move as $rrset) {
+        $rrset->delete();
+    }
+    $parent->rrsets = $move;
+    save_reverse_zone($api, $parent);
+    writelog("Moved $count records under $zonename from $parentname into $zonename");
+    return array($parentname, $count);
+}
+
 # Work out where the PTR for an A/AAAA record goes, before anything is saved, so an
 # invalid address gives an error without changing the zone. Returns null when no PTR
 # is wanted, otherwise array(reverse name, reverse zone or false).
@@ -538,6 +591,14 @@ case "create":
 
     $zone = $api->savezone($zone->export());
     writelog("Created zone ".$zone['name']);
+    if (!empty($_POST['moverecords']) && $zonekind != 'Slave') {
+        try {
+            move_records_from_parent($api, $zone['name']);
+            $zone = $api->loadzone($zone['name']);
+        } catch (Exception $e) {
+            writelog("Records under ".$zone['name']." not moved from the parent zone: ".$e->getMessage());
+        }
+    }
     jtable_respond($zone, 'single');
     break;
 
@@ -776,7 +837,8 @@ case "createreverse":
     foreach ($api->listzones() as $z) {
         $existing[$z['name']] = true;
     }
-    $created = $skipped = $failed = array();
+    $moverecords = !empty($_POST['moverecords']);
+    $created = $skipped = $failed = $moved = array();
     foreach ($wanted as $zonename) {
         if (isset($existing[$zonename])) {
             $skipped[] = $zonename;
@@ -801,13 +863,22 @@ case "createreverse":
             $created[] = $zonename;
         } catch (Exception $e) {
             $failed[] = "$zonename: ".$e->getMessage();
+            continue;
+        }
+        if ($moverecords) {
+            try {
+                list($parentname, $n) = move_records_from_parent($api, $zonename);
+                if ($n > 0) $moved[] = "$zonename: $n from $parentname";
+            } catch (Exception $e) {
+                $failed[] = "$zonename: created, but records not moved from the parent zone: ".$e->getMessage();
+            }
         }
     }
     if (!$created && $failed) {
         jtable_respond(null, 'error', "No zones created. ".implode('; ', $failed));
     }
     jtable_respond(array('id' => '', 'prefixes' => implode(' ', $prefixes),
-        'created' => $created, 'skipped' => $skipped, 'failed' => $failed), 'single');
+        'created' => $created, 'skipped' => $skipped, 'failed' => $failed, 'moved' => $moved), 'single');
     break;
 
 case "gettemplatenameservers":
