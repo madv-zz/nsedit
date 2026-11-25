@@ -102,12 +102,21 @@ PowerDNS 5 that code had these problems:
   push or deletion, also not for admins), secret scanning with push protection, Dependabot alerts and
   security updates, private vulnerability reporting, issues enabled.
 
+## Step 6: bundled JavaScript vulnerabilities classified as not reachable
+
+- `.osv-ignore`: the 8 known vulnerabilities in jQuery 1.10.2 and jQuery UI 1.11.x are not reachable in
+  nsedit (datepicker and checkboxradio are not loaded, `closeText` is never set, `.position()` only gets
+  fixed values, ajax is same-origin only, jTable only merges records with keys from nsedit and builds
+  `<option>` elements from names that cannot contain HTML, table cells use `.text()`). Each entry now says why;
+  expiry moved to 2027-11-25. The upgrade (issue #2) stays as maintenance.
+
 ## Where it is now
 
 - Runs on PHP 8.4, 8.5 and 8.6 with PowerDNS Authoritative 5.0: the smoke test passes
   all checks on all three versions, without any PHP warning or deprecation in the log.
 - Every change goes through a pull request with CI; `master` is protected.
-- Open: the bundled jQuery and jQuery UI have known XSS vulnerabilities (issue #2).
+- Open: the bundled jQuery and jQuery UI are outdated; their known vulnerabilities are not reachable in
+  nsedit, the upgrade is issue #2.
 - Requires PowerDNS 4.4 or newer with the API enabled.
 - `docker compose up -d --build` starts PowerDNS and nsedit; see the README.
 - No Tuxis branding; the GPLv2 license and the credits to the original authors are kept.
