@@ -103,13 +103,14 @@ with the current jQuery are in `js/jtable-fixes.js`. jTable is unmaintained sinc
 a library, run `tests/ui.py` (CI does). Dependabot does not see these files. Dependabot opens update pull requests for GitHub Actions and Docker
 images after a cooldown of 14 days. Security issues: see [SECURITY.md](SECURITY.md).
 
-FreeBSD and OpenBSD
-===================
+FreeBSD, OpenBSD and NetBSD
+===========================
 
 nsedit is tested on **FreeBSD 15.1** in jails (PowerDNS in one jail, nginx + php-fpm + nsedit in another) and
-on **OpenBSD 8.0** with httpd and php-fpm chrooted in `/var/www`. Reference configurations and scripts to run
-them in a VM on a Linux laptop are in [contrib/freebsd/](contrib/freebsd/README.md) and
-[contrib/openbsd/](contrib/openbsd/README.md); `contrib/vm-checks.sh` runs the same checks as CI against them.
+on **OpenBSD 8.0** with httpd and php-fpm chrooted in `/var/www`, and on **NetBSD 11.1** with nginx, php-fpm and
+PowerDNS with PostgreSQL from pkgsrc. Reference configurations and scripts to run them in a VM on a Linux laptop
+are in [contrib/freebsd/](contrib/freebsd/README.md), [contrib/openbsd/](contrib/openbsd/README.md) and
+[contrib/netbsd/](contrib/netbsd/README.md); `contrib/vm-checks.sh` runs the same checks as CI against them.
 
 Requirements
 ============

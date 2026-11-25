@@ -48,12 +48,13 @@ gh attestation verify nsedit-2.0.0.tar.gz -R madv-zz/nsedit   # built by this re
 | Debian 13 (trixie), in Docker on Ubuntu 24.04 | Apache 2.4 + mod_php | 8.4, 8.5, 8.6 | 4.9.18, 5.0.8, 5.1.5 | CI on every pull request, every change on `master` and weekly: all 9 combinations |
 | FreeBSD 15.1-RELEASE, in two jails | nginx 1.30.7 + php-fpm | 8.4.27, 8.5.12, 8.6.0RC3 | 5.1.5 | by hand, in a VM (`contrib/freebsd/vm.sh`) |
 | OpenBSD 8.0, httpd + php-fpm chrooted in `/var/www` | httpd (base) + php-fpm | 8.3.37, 8.4.28, 8.5.13 | 5.1.5 | by hand, in a VM (`contrib/openbsd/vm.sh`) |
+| NetBSD 11.1, pkgsrc 2026Q3 | nginx 1.30.7 + php-fpm | 8.4.28, 8.5.13 | 5.1.4 (PostgreSQL backend) | by hand, in a VM (`contrib/netbsd/vm.sh`) |
 
 All run the same checks (`contrib/vm-checks.sh` for the VMs): `tests/smoke.py`, the browser test `tests/ui.py`, no
-PHP warnings, DNS answers and that internal files are not served. On the BSDs only PowerDNS 5.1.5 is packaged;
-FreeBSD ships PHP 8.6 as a release candidate so far, OpenBSD 8.0 not at all. Bundled in `vendor/`: jQuery 3.7.1, jQuery UI 1.14.2, jTable 2.6.0.
+PHP warnings, DNS answers and that internal files are not served. On the BSDs one PowerDNS version is packaged
+(5.1.5, NetBSD's pkgsrc 5.1.4); FreeBSD ships PHP 8.6 as a release candidate so far, OpenBSD 8.0 and pkgsrc not at all. Bundled in `vendor/`: jQuery 3.7.1, jQuery UI 1.14.2, jTable 2.6.0.
 
-Not tested yet: NetBSD 11.1 / pkgsrc (PHP 8.2 to 8.5, PowerDNS 5.1.2 to 5.1.5 as packages, 2026-11-25). FreeBSD ships PHP 8.2 to 8.6 and PowerDNS 5.1.5 (in the
+FreeBSD ships PHP 8.2 to 8.6 and PowerDNS 5.1.5 (in the
 *latest* package repository; it was missing from *quarterly*). nsedit itself only needs PHP with curl,
 sqlite3 and openssl, and the PowerDNS API.
 
@@ -246,13 +247,21 @@ without the fix (except the SOA serial of reverse zones, see below).
 - Pull request template: the test plan lists only what was checked by hand; no "CI green" item, CI is
   enforced by the required `check`.
 
+## Step 12: tested on NetBSD
+
+- **NetBSD 11.1** (`contrib/netbsd/`): nginx + php-fpm from pkgsrc, PowerDNS 5.1.4 with the PostgreSQL backend
+  (pkgsrc has no sqlite backend for PowerDNS; `powerdns-pgsql` needs the PostgreSQL 16 client, so
+  `postgresql16-server`). PHP 8.4.28 and 8.5.13 pass all checks without changes to nsedit.
+- `vm.sh` installs NetBSD with anita 2.18 (NetBSD's install-test tool, tarball checked against a fixed SHA256)
+  and runs the VM without IPv6 in QEMU's network (pkgsrc's CDN answers with IPv6 first and downloads hung).
+
 ## Where it is now
 
 - Runs on PHP 8.4, 8.5 and 8.6 with PowerDNS Authoritative 4.9, 5.0 and 5.1: the smoke test and the
   browser test pass on every combination, without any PHP warning or deprecation in the log.
 - Every change goes through a pull request with CI and a ticked test plan; `master` and release tags are
   protected; releases with a checked tarball from v2.0.0 on.
-- Runs on FreeBSD in jails (nginx + php-fpm); reference setup in `contrib/freebsd/`.
+- Runs on FreeBSD in jails, OpenBSD in a chroot and NetBSD with pkgsrc; reference setups in `contrib/`.
 - jQuery 3.7.1, jQuery UI 1.14.2 and jTable 2.6.0 without known vulnerabilities; jTable itself is
   unmaintained, the browser test guards it.
 - Tested with PowerDNS 4.9, 5.0 and 5.1 (API enabled) on PHP 8.4, 8.5 and 8.6; see Tested versions.
