@@ -1,11 +1,3 @@
-# Known vulnerabilities in the bundled JavaScript libraries, accepted until the expiry date.
+# Known vulnerabilities in the bundled JavaScript libraries (vendor/), accepted until the expiry date.
 # Format: <id> <expires YYYY-MM-DD> <reason>. Checked by ci/vendored-js.py.
-# Upgrade of jQuery 1.10.2 and jQuery UI 1.11.x: https://github.com/madv-zz/nsedit/issues/2
-GHSA-6c3j-c64m-qhgq 2027-01-31 jQuery 1.10.2 XSS, upgrade pending
-GHSA-jpcq-cgw6-v4j6 2027-01-31 jQuery 1.10.2 XSS, upgrade pending
-GHSA-rmxg-73gg-4p98 2027-01-31 jQuery 1.10.2 XSS, upgrade pending
-GHSA-9gj3-hwp5-pmwc 2027-01-31 jQuery UI 1.11 XSS, upgrade pending
-GHSA-gpqq-952q-5327 2027-01-31 jQuery UI 1.11 XSS, upgrade pending
-GHSA-h6gj-6jjq-h8g9 2027-01-31 jQuery UI 1.11 XSS, upgrade pending
-GHSA-hpcf-8vf9-q4gj 2027-01-31 jQuery UI 1.11 XSS, upgrade pending
-GHSA-j7qv-pgf6-hvh4 2027-01-31 jQuery UI 1.11 XSS, upgrade pending
+# Empty: jQuery 3.7.1, jQuery UI 1.14.2 and jTable 2.6.0 have no known vulnerabilities (2026-11-25).

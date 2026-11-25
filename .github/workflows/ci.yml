@@ -21,6 +21,8 @@ env:
   TRIVY_IMAGE: aquasec/trivy:0.76.2
   PHPSTAN_VERSION: 2.3.5
   PHPSTAN_SHA256: 4b3ed7850a20b092331bd1040e4f54a1d3c0559b4cf006431073997ebcb4324b
+  PLAYWRIGHT_IMAGE: mcr.microsoft.com/playwright/python:v1.65.1-noble
+  PLAYWRIGHT_VERSION: 1.65.1
   RUFF_VERSION: 0.17.4
   BANDIT_VERSION: 1.9.4
 
@@ -66,7 +68,7 @@ jobs:
       - name: php -l
         run: >-
           docker run --rm -v "$PWD:/src:ro" -w /src "php:${{ matrix.php }}-cli" sh -ec
-          'git_files=$(find . -name "*.php" -not -path "./jquery-ui/*" -not -path "./jtable/*" -not -path "./js/*");
+          'git_files=$(find . -name "*.php" -not -path "./vendor/*" -not -path "./js/*");
           for f in $git_files; do php -l "$f" >/dev/null || exit 1; done; echo "$(echo $git_files | wc -w) files OK"'
 
   quality:
@@ -109,7 +111,7 @@ jobs:
           config -q --severity HIGH,CRITICAL --exit-code 1 --ignorefile /repo/.trivyignore.yaml /repo
 
   tests:
-    name: tests (php ${{ matrix.php }}, PowerDNS 5)
+    name: tests (php ${{ matrix.php }}, PowerDNS 5, browser)
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -136,6 +138,11 @@ jobs:
       - name: no PHP warnings, notices or deprecations
         run: |
           if docker compose logs nsedit | grep -E 'PHP (Warning|Notice|Deprecated|Fatal|Parse)'; then exit 1; fi
+      - name: browser test (jQuery, jQuery UI, jTable in Chromium)
+        run: >-
+          docker run --rm --network host -v "$PWD:/src:ro" -w /src "$PLAYWRIGHT_IMAGE"
+          sh -c "pip install -q --break-system-packages --root-user-action=ignore playwright==${PLAYWRIGHT_VERSION}
+          && python3 -I tests/ui.py"
       - name: DNS answers from PowerDNS
         run: |
           KEEP=1 python3 -I tests/smoke.py >/dev/null

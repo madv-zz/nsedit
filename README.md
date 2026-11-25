@@ -76,17 +76,22 @@ CI runs on every pull request, on `master` and weekly, each check as its own job
 | Job | What |
 |---|---|
 | `gitleaks` | secrets in the whole git history |
-| `dependencies` | trivy fs, and the bundled JavaScript libraries against OSV (`ci/vendored-js.py`) |
+| `dependencies` | trivy fs, and the bundled JavaScript libraries in `vendor/` against OSV (`ci/vendored-js.py`) |
 | `lint` | `php -l` on PHP 8.4, 8.5 and 8.6 |
 | `quality` | PHPStan level 5 (existing findings in `phpstan-baseline.neon`), ruff on the Python scripts |
 | `bandit` | unsafe code in the Python scripts |
 | `docker-config` | trivy config on the Dockerfiles and compose file |
-| `tests` | Docker stack with PowerDNS 5 on PHP 8.4, 8.5 and 8.6: `tests/smoke.py`, no PHP warnings, DNS answers, internal files not served |
+| `tests` | Docker stack with PowerDNS 5 on PHP 8.4, 8.5 and 8.6: `tests/smoke.py`, browser test `tests/ui.py` (Playwright/Chromium, fails on any JavaScript error or console warning), no PHP warnings, DNS answers, internal files not served |
 | `docker-images` | trivy image (CRITICAL) on the built images |
 | `check` | sums up the jobs above; required for merging |
 
 Accepted findings always have a reason and an expiry date: `.trivyignore.yaml` (trivy) and `.osv-ignore`
-(bundled JavaScript, see issue #2). Dependabot opens update pull requests for GitHub Actions and Docker
+(bundled JavaScript).
+
+The browser libraries are bundled in `vendor/`: jQuery 3.7.1, jQuery UI 1.14.2 and jTable 2.6.0. Their
+versions, npm checksums and the small patches to jTable are in `vendor/versions.json`; fixes for jTable
+with the current jQuery are in `js/jtable-fixes.js`. jTable is unmaintained since 2018: after replacing
+a library, run `tests/ui.py` (CI does). Dependabot does not see these files. Dependabot opens update pull requests for GitHub Actions and Docker
 images after a cooldown of 14 days. Security issues: see [SECURITY.md](SECURITY.md).
 
 Requirements

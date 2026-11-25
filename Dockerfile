@@ -22,7 +22,7 @@ COPY docker/config.inc.php /var/www/html/includes/config.inc.php
 # nsedit's user database lives outside the document root
 RUN mkdir -p /var/lib/nsedit && chown www-data:www-data /var/lib/nsedit \
  && rm -rf /var/www/html/docker /var/www/html/Dockerfile /var/www/html/docker-compose.yml /var/www/html/.env.example \
-           /var/www/html/jquery-ui/tests /var/www/html/jquery-ui/demos
+           /var/www/html/vendor/versions.json
 VOLUME /var/lib/nsedit
 
 USER www-data
