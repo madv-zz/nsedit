@@ -181,6 +181,68 @@ function reverse_name($ip) {
     return implode('.', array_reverse(str_split(bin2hex($packed)))) . '.ip6.arpa.';
 }
 
+# Reverse zones that cover an IPv4/IPv6 prefix such as 185.69.204.0/22 or 2a06:900::/29.
+# IPv4 zones are /8, /16 or /24 (a /22 gives four /24 zones), IPv6 zones end on a nibble
+# (a /29 gives eight /32 zones). Returns an array of zone names, or an error string.
+function reverse_zones_for_prefix($prefix, $max) {
+    $shown = htmlspecialchars($prefix, ENT_QUOTES);  # jTable shows error messages as HTML
+    if (!preg_match('#^([0-9a-fA-F:.]+)/([0-9]{1,3})$#', trim($prefix), $m)) {
+        return "$shown: use address/length, e.g. 192.0.2.0/24";
+    }
+    $packed = @inet_pton($m[1]);
+    $len = (int) $m[2];
+    if ($packed === false) {
+        return "$shown: not an IP address";
+    }
+    $v4 = strlen($packed) == 4;
+    $bits = $v4 ? 32 : 128;
+    $step = $v4 ? 8 : 4;
+    if ($len > $bits) {
+        return "$shown: prefix length is too long";
+    }
+    if ($v4 && $len > 24) {
+        return "$shown: IPv4 prefixes longer than /24 need classless delegation (RFC 2317), not supported";
+    }
+    # the zone length: the prefix length rounded up to the next label boundary
+    $zonelen = (int) (ceil($len / $step) * $step);
+    if ($zonelen == 0) {
+        return "$shown: too short";
+    }
+    $count = 1 << ($zonelen - $len);
+    if ($count > $max) {
+        return "$shown: gives $count zones, more than the maximum of $max";
+    }
+    # the address as a string of bits; check that no bits are set after the prefix
+    $bin = '';
+    foreach (str_split($packed) as $c) {
+        $bin .= str_pad(decbin(ord($c)), 8, '0', STR_PAD_LEFT);
+    }
+    if (strpos(substr($bin, $len), '1') !== false) {
+        return "$shown: host bits are set, did you mean ".inet_ntop(pack_bits(substr($bin, 0, $len), $bits))."/$len?";
+    }
+    $zones = array();
+    for ($i = 0; $i < $count; $i++) {
+        $extra = $zonelen - $len;
+        $zonebits = substr($bin, 0, $len) . ($extra ? str_pad(decbin($i), $extra, '0', STR_PAD_LEFT) : '');
+        $labels = array();
+        foreach (str_split($zonebits, $step) as $chunk) {
+            $labels[] = $v4 ? (string) bindec($chunk) : dechex(bindec($chunk));
+        }
+        $zones[] = implode('.', array_reverse($labels)) . ($v4 ? '.in-addr.arpa.' : '.ip6.arpa.');
+    }
+    return $zones;
+}
+
+# A string of bits, padded with zeroes to $bits, as a packed address for inet_ntop().
+function pack_bits($bitstring, $bits) {
+    $bitstring = str_pad($bitstring, $bits, '0');
+    $packed = '';
+    foreach (str_split($bitstring, 8) as $byte) {
+        $packed .= chr(bindec($byte));
+    }
+    return $packed;
+}
+
 # PTR records may be entered the easy way: the IP address as name and a hostname
 # without the final dot as content. Turns an address into its reverse name (it must
 # be inside $zonename) and makes the hostname absolute. Other input is left alone.
@@ -219,6 +281,59 @@ function find_ptr_zone($api, $revname) {
         }
     }
     return $best;
+}
+
+# Move the records that fall inside a newly created zone out of its parent zone (the
+# most specific existing zone above it) into the new zone. Without this, records such as
+# the PTRs of a /56 that is split off a /32 become invisible: PowerDNS answers from the
+# new, empty zone. NS and DS records at the apex of the new zone stay in the parent
+# (they are the delegation). Only done when the user may change the parent zone.
+# Returns array(parent zone name or false, number of records moved).
+function move_records_from_parent($api, $zonename) {
+    $parentname = false;
+    foreach ($api->listzones() as $z) {
+        $zname = $z['name'] ?? '';
+        if ($zname == '' || $zname === $zonename || ($z['kind'] ?? '') == 'Slave') continue;
+        if (!string_ends_with($zonename, '.'.$zname)) continue;
+        if ($parentname === false || strlen($zname) > strlen($parentname)) {
+            $parentname = $zname;
+        }
+    }
+    if ($parentname === false) {
+        return array(false, 0);
+    }
+    $parent = new Zone();
+    $parent->parse($api->loadzone($parentname));
+    if ($parent->account == '') {
+        $parent->setAccount(get_zone_account($parentname, 'admin'));
+    }
+    if (!check_account($parent)) {
+        writelog("Records under $zonename not moved: no access to parent zone $parentname");
+        return array($parentname, 0);
+    }
+    $move = array();
+    $count = 0;
+    foreach ($parent->rrsets as $rrset) {
+        if ($rrset->name !== $zonename && !string_ends_with($rrset->name, '.'.$zonename)) continue;
+        if ($rrset->name === $zonename && in_array($rrset->type, array('SOA', 'NS', 'DS'), true)) continue;
+        $move[] = $rrset;
+        $count += count($rrset->records);
+    }
+    if (!$move) {
+        return array($parentname, 0);
+    }
+    # first add them to the new zone; only when that worked, remove them from the parent
+    $child = new Zone();
+    $child->parse($api->loadzone($zonename));
+    $child->rrsets = $move;
+    $api->savezone($child->export());
+    foreach ($move as $rrset) {
+        $rrset->delete();
+    }
+    $parent->rrsets = $move;
+    save_reverse_zone($api, $parent);
+    writelog("Moved $count records under $zonename from $parentname into $zonename");
+    return array($parentname, $count);
 }
 
 # Work out where the PTR for an A/AAAA record goes, before anything is saved, so an
@@ -497,6 +612,14 @@ case "create":
 
     $zone = $api->savezone($zone->export());
     writelog("Created zone ".$zone['name']);
+    if (!empty($_POST['moverecords']) && $zonekind != 'Slave') {
+        try {
+            move_records_from_parent($api, $zone['name']);
+            $zone = $api->loadzone($zone['name']);
+        } catch (Exception $e) {
+            writelog("Records under ".$zone['name']." not moved from the parent zone: ".$e->getMessage());
+        }
+    }
     jtable_respond($zone, 'single');
     break;
 
@@ -695,6 +818,90 @@ case "clone":
 
     writelog("Cloned zone $srcname into $name");
     jtable_respond($zone, 'single');
+    break;
+
+case "createreverse":
+    # Create all reverse zones for one or more prefixes (admin only). Zones that
+    # already exist are left alone; nothing is created when a prefix is invalid.
+    if (!is_adminuser()) {
+        jtable_respond(null, 'error', "You are not allowed to add reverse zones");
+    }
+    $max = 256;
+    $kind = $_POST['kind'] ?? 'Master';
+    if (!in_array($kind, array('Master', 'Native'), true)) {
+        jtable_respond(null, 'error', "Type must be Master or Native");
+    }
+    $prefixes = preg_split('/[\s,;]+/', $_POST['prefixes'] ?? '', -1, PREG_SPLIT_NO_EMPTY);
+    if (!$prefixes) {
+        jtable_respond(null, 'error', "Give at least one prefix, e.g. 192.0.2.0/24");
+    }
+    $wanted = array();
+    foreach ($prefixes as $prefix) {
+        $res = reverse_zones_for_prefix($prefix, $max);
+        if (!is_array($res)) {
+            jtable_respond(null, 'error', $res);
+        }
+        $wanted = array_merge($wanted, $res);
+    }
+    $wanted = array_values(array_unique($wanted));
+    if (count($wanted) > $max) {
+        jtable_respond(null, 'error', count($wanted)." zones, more than the maximum of $max per request");
+    }
+    $nameservers = array();
+    foreach ((array) ($_POST['nameserver'] ?? array()) as $ns) {
+        if (trim($ns) !== '') $nameservers[] = trim($ns);
+    }
+    if (!$nameservers && $kind == 'Master') {
+        jtable_respond(null, 'error', "Give at least one nameserver");
+    }
+    $account = $_POST['account'] ?? get_sess_user();
+
+    $existing = array();
+    foreach ($api->listzones() as $z) {
+        $existing[$z['name']] = true;
+    }
+    $moverecords = !empty($_POST['moverecords']);
+    $created = $skipped = $failed = $moved = array();
+    foreach ($wanted as $zonename) {
+        if (isset($existing[$zonename])) {
+            $skipped[] = $zonename;
+            continue;
+        }
+        try {
+            $zone = new Zone();
+            $zone->setKind($kind);
+            $zone->setName($zonename);
+            foreach ($nameservers as $ns) {
+                $zone->addNameserver($ns);
+            }
+            if (isset($defaults['soa_edit_api'])) {
+                $zone->setSoaEditApi($defaults['soa_edit_api'], True);
+            }
+            if (isset($defaults['soa_edit'])) {
+                $zone->setSoaEdit($defaults['soa_edit']);
+            }
+            $api->savezone($zone->export());
+            add_db_zone($zonename, $account);
+            writelog("Created reverse zone $zonename");
+            $created[] = $zonename;
+        } catch (Exception $e) {
+            $failed[] = "$zonename: ".$e->getMessage();
+            continue;
+        }
+        if ($moverecords) {
+            try {
+                list($parentname, $n) = move_records_from_parent($api, $zonename);
+                if ($n > 0) $moved[] = "$zonename: $n from $parentname";
+            } catch (Exception $e) {
+                $failed[] = "$zonename: created, but records not moved from the parent zone: ".$e->getMessage();
+            }
+        }
+    }
+    if (!$created && $failed) {
+        jtable_respond(null, 'error', "No zones created. ".implode('; ', $failed));
+    }
+    jtable_respond(array('id' => '', 'prefixes' => implode(' ', $prefixes),
+        'created' => $created, 'skipped' => $skipped, 'failed' => $failed, 'moved' => $moved), 'single');
     break;
 
 case "gettemplatenameservers":

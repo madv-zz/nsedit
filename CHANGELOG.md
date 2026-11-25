@@ -2,6 +2,33 @@
 
 What changed in this fork, from where it started to where it is now.
 
+## v2.1.0 (2026-11-25)
+
+nsedit is now tested on NetBSD as well, so on all three BSDs. The PHP and JavaScript code is the same as in
+v2.0.0: coming from v2.0.0 there is nothing to change.
+
+**What it brings**
+
+- **NetBSD 11.1** with pkgsrc: nginx + php-fpm (PHP 8.4.28 and 8.5.13), PowerDNS 5.1.4 with the PostgreSQL
+  backend. All checks pass, see *Tested versions* and step 12.
+- `contrib/netbsd/`: a reference setup (`setup.sh`) and `vm.sh` to install, deploy and test NetBSD in a VM on a
+  Linux laptop, like `contrib/freebsd/` and `contrib/openbsd/`.
+
+**Good to know for NetBSD**
+
+- pkgsrc has no sqlite backend for PowerDNS: use `powerdns-pgsql` with `postgresql16-server` (the backend is built
+  against the PostgreSQL 16 client). nsedit only talks to the PowerDNS API and works with any backend.
+- Download packages from `cdn.netbsd.org`; `ftp.netbsd.org` was very slow.
+
+**Download and verify**
+
+```sh
+curl -LO https://github.com/madv-zz/nsedit/releases/download/v2.1.0/nsedit-2.1.0.tar.gz
+curl -LO https://github.com/madv-zz/nsedit/releases/download/v2.1.0/nsedit-2.1.0.tar.gz.sha256
+sha256sum -c nsedit-2.1.0.tar.gz.sha256
+gh attestation verify nsedit-2.1.0.tar.gz -R madv-zz/nsedit
+```
+
 ## v2.0.0 (2026-11-25)
 
 First release of this fork of [tuxis-ie/nsedit](https://github.com/tuxis-ie/nsedit) (upstream's last release is
@@ -254,6 +281,26 @@ without the fix (except the SOA serial of reverse zones, see below).
   `postgresql16-server`). PHP 8.4.28 and 8.5.13 pass all checks without changes to nsedit.
 - `vm.sh` installs NetBSD with anita 2.18 (NetBSD's install-test tool, tarball checked against a fixed SHA256)
   and runs the VM without IPv6 in QEMU's network (pkgsrc's CDN answers with IPv6 first and downloads hung).
+
+## Step 13: add reverse zones for a prefix
+
+- Zones tab, toolbar button **Add reverse zones** (admins only): give one or more prefixes, such as
+  `185.69.204.0/22` or `2a06:900::/29`, and nsedit creates every reverse zone that covers them, with the
+  chosen account, type and nameservers. IPv4 zones are /8, /16 or /24 (a /22 gives four /24 zones), IPv6
+  zones end on a nibble (a /29 gives eight /32 zones). Zones that already exist are left alone; a wrong
+  prefix (host bits set, IPv4 longer than /24, not an address) stops the request before anything is made.
+  At most 256 zones per request. A dialog lists what was created, skipped or failed.
+- New action `zones.php?action=createreverse`; covered by the smoke test and the browser test.
+
+## Step 14: move records from the parent zone
+
+- New checkbox **Move records from the parent zone** (on by default) when adding a zone and in *Add reverse
+  zones*. Records that fall inside the new zone are moved out of the most specific zone above it, for
+  example the PTRs of a customer's /56 when that /56 is split off a /32. Without this they would become
+  invisible, because PowerDNS answers from the new, still empty zone. NS and DS records at the apex of the
+  new zone stay in the parent (they are the delegation). Only done when the user may change the parent
+  zone; the records are first added to the new zone and only then removed from the parent. The result
+  dialog of *Add reverse zones* lists how many records were moved.
 
 ## Step 15: PTR records by IP address
 

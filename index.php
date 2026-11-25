@@ -190,6 +190,8 @@ if ($blocklogin === TRUE) {
         <?php } ?>
         <?php if (is_adminuser()) { ?>
         <div style="display: none;" id="CloneZone"></div>
+        <div style="display: none;" id="ReverseZones"></div>
+        <div style="display: none;" id="reverseresult" title="Reverse zones"></div>
         <?php } ?>
         <div class="tables" id="MasterZones">
             <div class="searchbar" id="searchbar">
@@ -527,6 +529,13 @@ $(document).ready(function () {
                         $('#CloneZone').jtable('showCreateForm');
                     }
                 },
+                {
+                    icon: 'vendor/jtable/themes/metro/add.png',
+                    text: 'Add reverse zones',
+                    click: function() {
+                        $('#ReverseZones').jtable('showCreateForm');
+                    }
+                },
                 <?php } ?>
                 ],
         },
@@ -836,6 +845,15 @@ $(document).ready(function () {
                 },
                 inputClass: 'nameserver nameserver1'
             },
+            moverecords: {
+                title: 'Move records from the parent zone',
+                type: 'checkbox',
+                values: {'0': 'No', '1': 'Yes'},
+                defaultValue: 1,
+                list: false,
+                edit: false,
+                inputClass: 'moverecords'
+            },
             serial: {
                 title: 'Serial',
                 width: '10%',
@@ -960,6 +978,78 @@ $(document).ready(function () {
         }
 
     });
+
+    <?php if (is_adminuser()) { ?>
+    $('#ReverseZones').jtable({
+        title: 'Add reverse zones',
+        actions: {
+            createAction: 'zones.php?action=createreverse'
+        },
+        fields: {
+            id: {
+                key: true,
+                type: 'hidden'
+            },
+            prefixes: {
+                title: 'Prefixes (one per line, e.g. 192.0.2.0/22 or 2001:db8::/29)',
+                type: 'textarea',
+                inputClass: 'prefixes'
+            },
+            account: {
+                title: 'Account',
+                options: function(data) {
+                    return 'users.php?action=listoptions&e='+$epoch;
+                },
+                defaultValue: 'admin',
+                inputClass: 'account'
+            },
+            kind: {
+                title: 'Type',
+                options: {'Native': 'Native', 'Master': 'Master'},
+                defaultValue: '<?php echo $defaults['defaulttype']; ?>',
+                inputClass: 'type'
+            },
+            nameserver: {
+                title: 'Nameservers',
+                create: true,
+                list: false,
+                edit: false,
+                input: function(data) {
+                    var ns_form = '<?php foreach($defaults['ns'] as $ns) echo '<input type="text" name="nameserver[]" value="'.$ns.'" /><br />'; ?>';
+                    return $('<div class="nameservers">' + ns_form + '</div>');
+                },
+                inputClass: 'nameserver'
+            },
+            moverecords: {
+                title: 'Move records from the parent zone',
+                type: 'checkbox',
+                values: {'0': 'No', '1': 'Yes'},
+                defaultValue: 1,
+                list: false,
+                edit: false,
+                inputClass: 'moverecords'
+            }
+        },
+        recordAdded: function(event, data) {
+            var r = data.record;
+            var $out = $('#reverseresult').empty();
+            [['Created', r.created], ['Already present, left alone', r.skipped], ['Records moved from the parent zone', r.moved], ['Failed', r.failed]].forEach(function(part) {
+                if (!part[1] || !part[1].length) return;
+                $out.append($('<p>').append($('<b>').text(part[0] + ' (' + part[1].length + ')')));
+                var $ul = $('<ul>');
+                part[1].forEach(function(z) { $ul.append($('<li>').text(z)); });
+                $out.append($ul);
+            });
+            $out.dialog({
+                modal: true,
+                width: 500,
+                maxHeight: 500,
+                buttons: { Close: function() { $(this).dialog('close'); } }
+            });
+            $("#MasterZones").jtable('load');
+        }
+    });
+    <?php } ?>
 
     $('#domsearch').addClear({
         onClear: function() { $('#MasterZones').jtable('load'); }

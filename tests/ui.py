@@ -19,7 +19,7 @@ from playwright.sync_api import expect, sync_playwright
 
 BASE = sys.argv[1] if len(sys.argv) > 1 else 'http://127.0.0.1:8080'
 ZONE = 'uitest.example.'
-REVZONE = '113.0.203.in-addr.arpa.'
+REVZONE = '113.0.203.in-addr.arpa.'  # made through 'Add reverse zones' for 203.0.113.0/24
 USER = 'uitest@example.com'
 EXPECTED = {'jQuery.fn.jquery': '3.7.1', 'jQuery.ui.version': '1.14.2'}
 
@@ -105,6 +105,7 @@ def zones(page):
     page.click('#MasterZones .jtable-toolbar-item-add-record')
     form = page.locator('.ui-dialog:visible #jtable-create-form')
     form.locator('#Edit-name').fill(ZONE)
+    expect(form.locator('#Edit-moverecords')).to_be_checked()
     expect(form.locator('#nameservers input[name="nameserver[]"]').first).to_be_visible()
     dialog_button(page, 'AddRecordDialogSaveButton')
     expect(master_row(page, ZONE)).to_have_count(1)
@@ -178,6 +179,25 @@ def zones(page):
     clone.get_by_role('button', name='Cancel').click()
     expect(clone).to_be_hidden()
     step('clone dialog opens and closes')
+
+    page.locator('#MasterZones .jtable-toolbar-item', has_text='Add reverse zones').click()
+    form = page.locator('.ui-dialog:visible #jtable-create-form')
+    form.locator('#Edit-prefixes').fill('203.0.113.0/24')
+    expect(form.locator('#Edit-moverecords')).to_be_checked()
+    expect(form.locator('input[name="nameserver[]"]').first).to_be_visible()
+    dialog_button(page, 'AddRecordDialogSaveButton')
+    result = page.locator('.ui-dialog', has=page.locator('#reverseresult'))
+    expect(result).to_be_visible()
+    expect(result).to_contain_text('Created (1)')
+    expect(result).to_contain_text(REVZONE)
+    result.locator('.ui-dialog-buttonpane button', has_text='Close').click()
+    expect(result).to_be_hidden()
+    search_zones(page, '113.0.203')
+    expect(master_row(page, REVZONE)).to_have_count(1)
+    master_row(page, REVZONE).locator('.jtable-delete-command-button').click()
+    dialog_button(page, 'DeleteDialogButton')
+    expect(master_row(page, REVZONE)).to_have_count(0)
+    step('add reverse zones for a prefix, then delete the zone')
 
 
 def reverse_ptr(page):
