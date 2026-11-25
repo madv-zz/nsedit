@@ -7,7 +7,6 @@ include_once('includes/class/PdnsApi.php');
 include_once('includes/class/Zone.php');
 
 if (!is_csrf_safe()) {
-    header('Status: 403');
     header('Location: ./index.php');
     jtable_respond(null, 'error', "Authentication required");
 }
@@ -165,7 +164,6 @@ function load_zone_checked($api, $zoneid) {
         $zone->setAccount(get_zone_account($zone->name, 'admin'));
     }
     if (!check_account($zone)) {
-        header('Status: 403 Access denied');
         jtable_respond(null, 'error', "You don't have access to this zone");
     }
     return $zone;
@@ -488,7 +486,6 @@ case "update":
 
     if ($zone->account !== $zoneaccount) {
         if (!is_adminuser()) {
-            header("Status: 403 Access denied");
             jtable_respond(null, 'error', "Can't change account");
         } else {
             add_db_zone($zone->name, $zoneaccount);

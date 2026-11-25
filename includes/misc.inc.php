@@ -225,6 +225,8 @@ function valid_user($name) {
     return ( bool ) preg_match( "/^[a-z0-9@_.-]+$/i" , $name );
 }
 
+# Answer for jTable. Errors are HTTP 200 with Result=ERROR on purpose: jTable only shows the message for a
+# 200 answer. (A 'Status:' header was ignored by mod_php but became a real status under php-fpm/nginx.)
 function jtable_respond($records, $method = 'multiple', $msg = 'Undefined errormessage') {
     $jTableResult = array();
     if ($method == 'error') {

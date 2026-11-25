@@ -13,8 +13,9 @@ test `tests/ui.py`) on every combination of:
 | PowerDNS Authoritative | 4.9.18, 5.0.8, 5.1.5 | FreeBSD and OpenBSD ship 5.1.5, pkgsrc 5.1.2 to 5.1.5 (2026-11-25) |
 | jQuery / jQuery UI / jTable | 3.7.1 / 1.14.2 / 2.6.0 | bundled in `vendor/` |
 
-The tests run in Docker on Linux (the `php:<version>-apache` and `powerdns/pdns-auth-*` images); nsedit
-itself only needs PHP with curl, sqlite3 and openssl, and the PowerDNS API.
+The tests run in Docker on Linux (the `php:<version>-apache` and `powerdns/pdns-auth-*` images). Also tested,
+by hand, on **FreeBSD 15.1** in jails with nginx + php-fpm 8.4 and PowerDNS 5.1.5 (`contrib/freebsd/`).
+nsedit itself only needs PHP with curl, sqlite3 and openssl, and the PowerDNS API.
 
 ## Starting point: upstream `master` at `7a18c00` (2025-03-11)
 
@@ -168,11 +169,25 @@ without the fix (except the SOA serial of reverse zones, see below).
   the intended PowerDNS version really runs. All passed without changes to nsedit.
 - "Tested versions" table at the top of this changelog.
 
+## Step 9: tested on FreeBSD in jails; HTTP status under php-fpm
+
+- Tested in a FreeBSD 15.1 VM with two jails: PowerDNS 5.1.5 and nginx + php-fpm 8.4 + nsedit. Smoke test
+  and browser test pass, no PHP warnings. The setup is in `contrib/freebsd/` (`setup-jails.sh` for the jails,
+  `vm.sh` to create, start, deploy and test the VM on a Linux laptop with KVM).
+- **Fixed, found on FreeBSD:** nsedit sent `Status: 403` / `Status: 400` headers before its JSON errors.
+  mod_php (the Docker image) ignores such a header, php-fpm makes it the real HTTP status. jTable then only
+  showed "An error occured while communicating to the server" instead of the message (for example "You don't
+  have access to this zone"). JSON errors for jTable are now always HTTP 200 (as before under Apache), not
+  logged in is a plain redirect, and a wrong admin API key is a real 403 (`http_response_code()`) everywhere.
+- Note for FreeBSD: `dns/powerdns` was missing from the quarterly package repository of FreeBSD 15; the
+  latest repository has 5.1.5.
+
 ## Where it is now
 
 - Runs on PHP 8.4, 8.5 and 8.6 with PowerDNS Authoritative 5.0: the smoke test passes
   all checks on all three versions, without any PHP warning or deprecation in the log.
 - Every change goes through a pull request with CI; `master` is protected.
+- Runs on FreeBSD in jails (nginx + php-fpm); reference setup in `contrib/freebsd/`.
 - jQuery 3.7.1, jQuery UI 1.14.2 and jTable 2.6.0 without known vulnerabilities; jTable itself is
   unmaintained, the browser test guards it.
 - Tested with PowerDNS 4.9, 5.0 and 5.1 (API enabled) on PHP 8.4, 8.5 and 8.6; see Tested versions.
