@@ -6,22 +6,13 @@ made to run on **PHP 8.4 and newer** (tested with 8.4, 8.5 and 8.6) and **PowerD
 Authoritative 5.0**. It is not affiliated with or endorsed by Tuxis; all credits for
 the original work go to its authors (see [Credits](#credits)).
 
-Changes compared to upstream:
+Main changes compared to upstream (details in [CHANGELOG.md](CHANGELOG.md)):
 
-* PHP 8: mcrypt (removed in PHP 7.2) replaced by openssl for the auto-login cookie,
-  no `null` arguments to internal functions, no dynamic properties, no warnings for
-  missing form fields, parse error in `rotate-logs.php` fixed.
-* PowerDNS 5: cloning zones works again (duplicate rrsets are rejected by PowerDNS 5),
-  and "Set PTR Record" is done by nsedit itself, because PowerDNS removed `set-ptr`
-  from its API in 4.4.
-* Security: access check on every zone action (a normal user could read and change
-  any zone by its name), CSRF token on the change password form, escaped output,
-  prepared statement for the initial admin user, constant time comparisons.
-* API client: Content-Type header is sent, https certificate verification works,
-  clear errors and timeouts when PowerDNS cannot be reached.
-* A Docker Compose stack (PowerDNS + nsedit) and a smoke test, see
-  [Running with Docker](#running-with-docker).
-* The Tuxis logo is replaced by a neutral NSEDIT logo.
+* Works on PHP 8.4, 8.5 and 8.6 (mcrypt replaced by openssl, no deprecations or warnings).
+* Works with PowerDNS 5: cloning zones and "Set PTR Record" fixed.
+* Security fixes: access check on every zone action, CSRF on the password form, escaping.
+* Docker Compose stack (PowerDNS + nsedit) and a smoke test.
+* Tuxis branding (logo and screenshots) removed.
 
 Running with Docker
 ===================
@@ -118,15 +109,6 @@ Default `pdns` package included in Ubuntu repositories has the version of 4.0.0-
 If your PowerDNS version is not the latest one, please consider adding PowerDNS repository to your system.
 
 Detailed instructions for adding repository are available at http://repo.powerdns.com/
-
-
-Screenshots
-===========
-
-![The login screen](screenshots/login.png)
-![Master zones](screenshots/master-import-zones.png)
-![Slave zones](screenshots/slavezones.png)
-
 
 
 Credits
