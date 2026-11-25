@@ -1,0 +1,33 @@
+# Test plan: a pull request is only ready when every checkbox in its description is ticked (ci/test-plan.py).
+# Its own workflow, because it also runs when the description is edited ("edited"), and that should not start
+# the whole CI again. Job "test-plan" is a required status check for merging into master, next to "check".
+name: test-plan
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: test-plan-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  test-plan:
+    name: test-plan
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The description comes from the API, not from the event: "Re-run" reuses the old event, so its
+      # description would be stale. Never put the description into the script itself (injection).
+      - name: every checkbox in the description is ticked
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR}" --jq '.body // ""' | python3 -I ci/test-plan.py --author "$AUTHOR"
