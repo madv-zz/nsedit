@@ -56,7 +56,12 @@ env ASSUME_ALWAYS_YES=yes pkg -r $J/pdns install -q -r FreeBSD-latest powerdns s
 # another PHP version from an earlier run would conflict: remove it first
 old=$(pkg -r $J/nsedit query -g '%n' 'php8*' 2>/dev/null | grep -v "^$PHP" || true)
 [ -z "$old" ] || env ASSUME_ALWAYS_YES=yes pkg -r $J/nsedit delete -q $old >/dev/null
-env ASSUME_ALWAYS_YES=yes pkg -r $J/nsedit install -q nginx $PHP $PHP-curl $PHP-sqlite3 $PHP-session $PHP-ctype $PHP-filter >/dev/null
+# PHP from ONE repository: with two enabled (quarterly + latest) pkg silently skipped an extension whose
+# versions differed between them (php86-ctype, 2026-11-25)
+env ASSUME_ALWAYS_YES=yes pkg -r $J/nsedit install -q -r FreeBSD-ports nginx $PHP $PHP-curl $PHP-sqlite3 $PHP-session $PHP-filter >/dev/null
+for ext in curl sqlite3 session filter openssl; do
+    chroot $J/nsedit /usr/local/bin/php -m | grep -qx "$ext" || { echo "ERROR: PHP extension $ext missing in the nsedit jail"; exit 1; }
+done
 
 # --- PowerDNS jail -------------------------------------------------------------------------------------------
 [ -f /root/pdns-api-key ] || (umask 077; openssl rand -hex 24 > /root/pdns-api-key)

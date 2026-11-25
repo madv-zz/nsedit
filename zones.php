@@ -284,7 +284,8 @@ function remove_old_ptr_record($api, $ip, $hostname) {
 function post_ttl() {
     global $defaults;
     $ttl = isset($_POST['ttl']) && $_POST['ttl'] !== '' ? $_POST['ttl'] : $defaults['ttl'];
-    if (!ctype_digit((string) $ttl)) {
+    # no ctype_digit(): the ctype extension is a separate package on BSD and nsedit does not need it otherwise
+    if (!preg_match('/^[0-9]+$/', (string) $ttl)) {
         jtable_respond(null, 'error', "TTL must be a positive number");
     }
     return (int) $ttl;

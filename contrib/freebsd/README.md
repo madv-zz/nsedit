@@ -11,8 +11,10 @@ What matters for nsedit:
 
 - **PowerDNS package**: `dns/powerdns` was missing from the FreeBSD 15 *quarterly* package repository
   (2026-11-25); the *latest* repository has 5.1.5 (with sqlite3, MySQL, PostgreSQL and LMDB backends).
-- **PHP packages**: `php84 php84-curl php84-sqlite3 php84-session php84-ctype php84-filter` (openssl is
-  built in). PHP 8.5 and 8.6 work too (tested in CI with Docker).
+- **PHP packages**: `php84 php84-curl php84-sqlite3 php84-session php84-filter` (openssl and json are built
+  in); the same for `php85-*` and `php86-*`. nsedit refuses to log in and says which extension is missing.
+  Install them from one package repository: with quarterly and latest both enabled, pkg silently skipped an
+  extension whose versions differed between the two.
 - **API from another jail**: in `pdns.conf` set `webserver-address` to the jail address and
   `webserver-allow-from` to the address of the nsedit jail; in nsedit's `includes/config.inc.php` set
   `$apiip` to the PowerDNS jail address.
