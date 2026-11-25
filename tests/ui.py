@@ -203,6 +203,29 @@ def delete_zone(page):
     step('delete zone')
 
 
+def theme(page):
+    """The theme button cycles auto -> light -> dark -> auto; auto follows the browser setting."""
+    html = page.locator('html')
+    button = page.locator('#themetoggle')
+    for scheme in ('light', 'dark'):
+        page.emulate_media(color_scheme=scheme)
+        expect(button).to_have_text('Theme: auto')
+        expect(html).to_have_attribute('data-theme', scheme)
+    page.emulate_media(color_scheme='light')
+    for label, resolved in (('light', 'light'), ('dark', 'dark'), ('auto', 'light')):
+        button.click()
+        expect(button).to_have_text('Theme: ' + label)
+        expect(html).to_have_attribute('data-theme', resolved)
+    button.click()
+    button.click()
+    page.reload()
+    expect(button).to_have_text('Theme: dark')
+    expect(html).to_have_attribute('data-theme', 'dark')
+    button.click()
+    expect(html).to_have_attribute('data-theme-pref', 'auto')
+    step('theme: auto follows the browser, button cycles, choice survives a reload')
+
+
 def main():
     with sync_playwright() as pw:
         browser = pw.chromium.launch()
@@ -222,6 +245,8 @@ def main():
             if got != version:
                 problems.append(f'{expression} is {got}, expected {version}')
         step('library versions')
+
+        theme(page)
 
         global ignore_answers
         ignore_answers = True

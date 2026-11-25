@@ -267,3 +267,12 @@ without the fix (except the SOA serial of reverse zones, see below).
 - Tested with PowerDNS 4.9, 5.0 and 5.1 (API enabled) on PHP 8.4, 8.5 and 8.6; see Tested versions.
 - `docker compose up -d --build` starts PowerDNS and nsedit; see the README.
 - No Tuxis branding; the GPLv2 license and the credits to the original authors are kept.
+
+## Step 16: dark mode
+
+- Light and dark theme. By default nsedit follows the system or browser setting (`prefers-color-scheme`) and
+  switches along when that changes. The **Theme** button in the menu, and top right on the login page,
+  cycles *auto* → *light* → *dark*; the choice is kept per browser (`localStorage`) and other open tabs follow.
+- `js/theme.js` is loaded in `<head>` and sets `<html data-theme>` before the page is drawn, so there is no
+  white flash. `css/dark.css` holds the dark colours for jQuery UI, jTable and nsedit's own styles; the light
+  theme is unchanged. Covered by the browser test.
