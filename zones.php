@@ -153,7 +153,85 @@ function quote_content($content) {
 }
 
 function check_account($zone) {
-    return is_adminuser() or ($zone->account === get_sess_user());
+    $account = is_array($zone) ? ($zone['account'] ?? '') : $zone->account;
+    return is_adminuser() or ($account === get_sess_user());
+}
+
+# Load a zone from the API and make sure the current user may access it.
+function load_zone_checked($api, $zoneid) {
+    $zone = new Zone();
+    $zone->parse($api->loadzone($zoneid));
+    if ($zone->account == '') {
+        $zone->setAccount(get_zone_account($zone->name, 'admin'));
+    }
+    if (!check_account($zone)) {
+        header('Status: 403 Access denied');
+        jtable_respond(null, 'error', "You don't have access to this zone");
+    }
+    return $zone;
+}
+
+# Reverse DNS name for an IPv4/IPv6 address, or false.
+function reverse_name($ip) {
+    $packed = @inet_pton($ip);
+    if ($packed === false) {
+        return false;
+    }
+    if (strlen($packed) == 4) {
+        return implode('.', array_reverse(explode('.', inet_ntop($packed)))) . '.in-addr.arpa.';
+    }
+    return implode('.', array_reverse(str_split(bin2hex($packed)))) . '.ip6.arpa.';
+}
+
+# Create/replace the PTR record for an A/AAAA record in the most specific
+# reverse zone that exists and that the user has access to. PowerDNS used to
+# do this with 'set-ptr', which was removed from its API in version 4.4.
+function set_ptr_record($api, $type, $ip, $hostname, $ttl, $disabled) {
+    if ($type != 'A' && $type != 'AAAA') {
+        return;
+    }
+    $revname = reverse_name($ip);
+    if ($revname === false) {
+        jtable_respond(null, 'error', "Cannot create PTR: $ip is not an IP address");
+    }
+
+    $best = false;
+    foreach ($api->listzones() as $z) {
+        $zname = $z['name'] ?? '';
+        if (($z['kind'] ?? '') == 'Slave' || $zname == '') continue;
+        if (string_ends_with($revname, '.'.$zname) || $revname === $zname) {
+            if ($best === false || strlen($zname) > strlen($best)) {
+                $best = $zname;
+            }
+        }
+    }
+    if ($best === false) {
+        writelog("No reverse zone found for $revname, PTR not created");
+        return;
+    }
+
+    $revzone = load_zone_checked($api, $best);
+    $rrset = $revzone->getRRSet($revname, 'PTR');
+    if ($rrset !== FALSE) {
+        foreach ($rrset->records as $r) {
+            $rrset->deleteRecord($r->content);
+        }
+        $rrset->addRecord($hostname, $disabled);
+        $rrset->setTtl($ttl);
+    } else {
+        $revzone->addRecord($revname, 'PTR', $hostname, $disabled, $ttl);
+    }
+    $api->savezone($revzone->export());
+    writelog("Set PTR $revname -> $hostname");
+}
+
+function post_ttl() {
+    global $defaults;
+    $ttl = isset($_POST['ttl']) && $_POST['ttl'] !== '' ? $_POST['ttl'] : $defaults['ttl'];
+    if (!ctype_digit((string) $ttl)) {
+        jtable_respond(null, 'error', "TTL must be a positive number");
+    }
+    return (int) $ttl;
 }
 
 if (isset($_GET['action'])) {
@@ -195,9 +273,7 @@ case "listslaves":
     break;
 
 case "listrecords":
-    $zonedata = $api->loadzone($_GET['zoneid']);
-    $zone = new Zone();
-    $zone->parse($zonedata);
+    $zone = load_zone_checked($api, $_GET['zoneid'] ?? '');
     $records = $zone->rrsets2records();
 
     if(!empty($_POST['label'])) {
@@ -225,7 +301,7 @@ case "listrecords":
     }
 
     if (isset($_GET['jtSorting'])) {
-        list($scolumn, $sorder) = preg_split("/ /", $_GET['jtSorting']);
+        list($scolumn, $sorder) = array_pad(preg_split("/ /", $_GET['jtSorting']), 2, 'ASC');
         switch ($scolumn) {
             case "type":
                 usort($records, "record_compare_type");
@@ -247,11 +323,11 @@ case "listrecords":
     break;
 
 case "delete":
-    $zone = $api->loadzone($_POST['id']);
-    $api->deletezone($_POST['id']);
+    $zone = load_zone_checked($api, $_POST['id'] ?? '');
+    $api->deletezone($zone->id);
 
-    delete_db_zone($zone['name']);
-    writelog("Deleted zone ".$zone['name']);
+    delete_db_zone($zone->name);
+    writelog("Deleted zone ".$zone->name);
     jtable_respond(null, 'delete');
     break;
 
@@ -277,8 +353,9 @@ case "create":
 
     if ($zonekind != "Slave") {
         if (!isset($_POST['zone']) or isset($_POST['owns'])) {
-            foreach ($_POST['nameserver'] as $ns) {
-                $zone->addNameserver($ns);
+            foreach ((array) ($_POST['nameserver'] ?? array()) as $ns) {
+                if (trim($ns) === '') continue;
+                $zone->addNameserver(trim($ns));
             }
         } else {
             $zone->importData($_POST['zone']);
@@ -291,7 +368,7 @@ case "create":
         }
     } else { // Slave
         if (isset($_POST['masters'])) {
-            foreach (preg_split('/[,;\s]+/', $_POST['masters'], null, PREG_SPLIT_NO_EMPTY) as $master) {
+            foreach (preg_split('/[,;\s]+/', $_POST['masters'], -1, PREG_SPLIT_NO_EMPTY) as $master) {
                 $zone->addMaster($master);
             }
         }
@@ -346,10 +423,9 @@ case "create":
     break;
 
 case "update":
-    $zone = new Zone();
-    $zone->parse($api->loadzone($_POST['id']));
+    $zone = load_zone_checked($api, $_POST['id'] ?? '');
     if ($zone->setSoaEditApi($defaults['soa_edit_api']) != False)
-        writelog("Set SOA-EDIT-API to ".$defaults['soa_edit_api']." for ",$zone->name);
+        writelog("Set SOA-EDIT-API to ".$defaults['soa_edit_api']." for ".$zone->name);
     $zoneaccount = isset($_POST['account']) ? $_POST['account'] : $zone->account;
 
     if ($zone->account !== $zoneaccount) {
@@ -364,7 +440,7 @@ case "update":
 
     if (isset($_POST['masters'])) {
         $zone->eraseMasters();
-        foreach(preg_split('/[,;\s]+/', $_POST['masters'], null, PREG_SPLIT_NO_EMPTY) as $master) {
+        foreach(preg_split('/[,;\s]+/', $_POST['masters'], -1, PREG_SPLIT_NO_EMPTY) as $master) {
             $zone->addMaster($master);
         }
     }
@@ -374,14 +450,13 @@ case "update":
     break;
 
 case "createrecord":
-    $zone = new Zone();
-    $zone->parse($api->loadzone($_GET['zoneid']));
+    $zone = load_zone_checked($api, $_GET['zoneid'] ?? '');
     if ($zone->setSoaEditApi($defaults['soa_edit_api']) != False)
-        writelog("Set SOA-EDIT-API to ".$defaults['soa_edit_api']." for ",$zone->name);
+        writelog("Set SOA-EDIT-API to ".$defaults['soa_edit_api']." for ".$zone->name);
 
     $name = isset($_POST['name']) ? $_POST['name'] : '';
-    $type = $_POST['type'];
-    $content = $_POST['content'];
+    $type = $_POST['type'] ?? '';
+    $content = $_POST['content'] ?? '';
 
     if ('' == $name) {
         $name = $zone->name;
@@ -410,47 +485,64 @@ case "createrecord":
         $content = quote_content($content);
     }
 
-    $record = $zone->addRecord($name, $type, $content, $_POST['disabled'], $_POST['ttl'], $_POST['setptr']);
+    $record = $zone->addRecord($name, $type, $content, (bool) ($_POST['disabled'] ?? false), post_ttl(), (bool) ($_POST['setptr'] ?? false));
     $api->savezone($zone->export());
+    if (!empty($_POST['setptr'])) {
+        set_ptr_record($api, $type, $content, $name, post_ttl(), (bool) ($_POST['disabled'] ?? false));
+    }
 
     writelog("Created record: ".$record['id']);
     jtable_respond($record, 'single');
     break;
 
 case "editrecord":
-    $zone = new Zone();
-    $zone->parse($api->loadzone($_GET['zoneid']));
+    $zone = load_zone_checked($api, $_GET['zoneid'] ?? '');
     if ($zone->setSoaEditApi($defaults['soa_edit_api']) != False)
-        writelog("Set SOA-EDIT-API to ".$defaults['soa_edit_api']." for ",$zone->name);
+        writelog("Set SOA-EDIT-API to ".$defaults['soa_edit_api']." for ".$zone->name);
 
     $old_record = decode_record_id(isset($_POST['id']) ? $_POST['id'] : '');
 
     $rrset = $zone->getRRSet($old_record['name'], $old_record['type']);
+    if ($rrset === FALSE) {
+        jtable_respond(null, 'error', "Record not found");
+    }
     $rrset->deleteRecord($old_record['content']);
 
-    $content = $_POST['content'];
-    $type = $_POST['type'];
+    $name = $_POST['name'] ?? '';
+    $content = $_POST['content'] ?? '';
+    $type = $_POST['type'] ?? '';
+    if (!_valid_label($name)) {
+        jtable_respond(null, 'error', "Please only use [a-z0-9_/.-]");
+    }
+    if (!is_ascii($content)) {
+        jtable_respond(null, 'error', "Please only use ASCII-characters in your fields");
+    }
     if (array_search($type, $quoteus) !== FALSE) {
         $content = quote_content($content);
     }
 
-    $zone->addRecord($_POST['name'], $_POST['type'], $content, $_POST['disabled'], $_POST['ttl'], $_POST['setptr']);
+    $zone->addRecord($name, $type, $content, (bool) ($_POST['disabled'] ?? false), post_ttl(), (bool) ($_POST['setptr'] ?? false));
 
     $api->savezone($zone->export());
+    if (!empty($_POST['setptr'])) {
+        set_ptr_record($api, $type, $content, $name, post_ttl(), (bool) ($_POST['disabled'] ?? false));
+    }
 
-    $record = $zone->getRecord($_POST['name'], $_POST['type'], $content);
+    $record = $zone->getRecord($name, $type, $content);
     writelog("Updated record ".$_POST['id']." to ".$record['id']);
     jtable_respond($record, 'single');
     break;
 
 case "deleterecord":
-    $zone = new Zone();
-    $zone->parse($api->loadzone($_GET['zoneid']));
+    $zone = load_zone_checked($api, $_GET['zoneid'] ?? '');
     if ($zone->setSoaEditApi($defaults['soa_edit_api']) != False)
-        writelog("Set SOA-EDIT-API to ".$defaults['soa_edit_api']." for ",$zone->name);
+        writelog("Set SOA-EDIT-API to ".$defaults['soa_edit_api']." for ".$zone->name);
 
     $old_record = decode_record_id(isset($_POST['id']) ? $_POST['id'] : '');
     $rrset = $zone->getRRSet($old_record['name'], $old_record['type']);
+    if ($rrset === FALSE) {
+        jtable_respond(null, 'error', "Record not found");
+    }
     $rrset->deleteRecord($old_record['content']);
 
     $api->savezone($zone->export());
@@ -460,13 +552,14 @@ case "deleterecord":
     break;
 
 case "export":
+    load_zone_checked($api, $_GET['zoneid'] ?? '');
     writelog("Exported zone ".$_GET['zoneid']);
     jtable_respond($api->exportzone($_GET['zoneid']), 'single');
     break;
 
 case "clone":
-    $name = $_POST['destname'];
-    $src  = $_POST['sourcename'];
+    $name = $_POST['destname'] ?? '';
+    $src  = $_POST['sourcename'] ?? '';
 
     if (!string_ends_with($name, '.')) {
         $name = $name.".";
@@ -476,46 +569,56 @@ case "clone":
         jtable_respond(null, 'error', "Invalid destination zonename");
     }
 
-    $srczone = new Zone();
-    $srczone->parse($api->loadzone($src));
-    if ($srczone->setSoaEditApi($defaults['soa_edit_api']) != False)
-        writelog("Set SOA-EDIT-API to ".$defaults['soa_edit_api']." for ",$srczone->name);
+    if (!is_adminuser() and $allowzoneadd !== true) {
+        jtable_respond(null, 'error', "You are not allowed to add zones");
+    }
+    if (!is_adminuser() && get_sess_user() !== get_zone_account($name, get_sess_user())) {
+        jtable_respond(null, 'error', 'Zone already owned by someone else');
+    }
+
+    $srczone = load_zone_checked($api, $src);
+    $srcname = $srczone->name;
+    # keep the rrsets of the source, renamed to the new zone
+    $srcrrsets = $srczone->rrsets;
+    foreach ($srcrrsets as $rrset) {
+        $rrset->setName(preg_replace('/'.preg_quote($srcname, '/').'$/', $name, $rrset->name));
+    }
+    $srczone->rrsets = array();
 
     $srczone->setId('');
     $srczone->setName($name);
     $srczone->setSerial('');
-    $srczone->setKind($_POST['kind']);
+    $srczone->setKind($_POST['kind'] ?? 'Master');
+    $srczone->eraseMasters();
+    if ($srczone->setSoaEditApi($defaults['soa_edit_api']) != False)
+        writelog("Set SOA-EDIT-API to ".$defaults['soa_edit_api']." for ".$name);
 
-    $zone = $api->savezone($srczone->export());
-
-    $srczone->parse($zone);
-
-    foreach ($srczone->rrsets as $rrset) {
-        $newname = $rrset->name;
-        $newname = preg_replace('/'.$src.'$/', $name, $newname);
-        $rrset->setName($newname);
-    }
+    # create the (empty) zone, then replace its rrsets with those of the source.
+    # Don't mix both sets: PowerDNS 5 rejects duplicate rrsets in one PATCH.
+    $newzone = new Zone();
+    $newzone->parse($api->savezone($srczone->export()));
+    $newzone->rrsets = $srcrrsets;
 
     if (is_adminuser() && isset($_POST['account'])) {
         add_db_zone($name, $_POST['account']);
-        $srczone->setAccount($_POST['account']);
+        $newzone->setAccount($_POST['account']);
     } else {
         add_db_zone($name, get_sess_user());
-        $srczone->setAccount(get_sess_user());
+        $newzone->setAccount(get_sess_user());
     }
 
-    $zone = $api->savezone($srczone->export());
+    $zone = $api->savezone($newzone->export());
 
-    writelog("Cloned zone $src into $name");
+    writelog("Cloned zone $srcname into $name");
     jtable_respond($zone, 'single');
     break;
 
 case "gettemplatenameservers":
     $ret = array();
-    $type = $_GET['prisec'];
+    $type = $_GET['prisec'] ?? '';
 
     foreach (user_template_list() as $template) {
-        if ($template['name'] !== $_GET['template']) continue;
+        if ($template['name'] !== ($_GET['template'] ?? '')) continue;
         $rc = 0;
         foreach ($template['records'] as $record) {
             if ($record['type'] == "NS") {
@@ -532,11 +635,11 @@ case "gettemplatenameservers":
 case "getformnameservers":
     $inputs = array();
     foreach (user_template_list() as $template) {
-        if ($template['name'] !== $_GET['template']) continue;
+        if ($template['name'] !== ($_GET['template'] ?? '')) continue;
         foreach ($template['records'] as $record) {
             if ($record['type'] == "NS" and array_search($record['content'], $inputs) === false) {
 		array_push($inputs, $record['content']);
-                echo '<input type="text" name="nameserver[]" value="'.$record['content'].'" readonly /><br />';
+                echo '<input type="text" name="nameserver[]" value="'.htmlspecialchars($record['content'], ENT_QUOTES).'" readonly /><br />';
             }
         }
     }
@@ -546,6 +649,9 @@ case "formzonelist":
     usort($zones, "zone_compare");
     $ret = array();
     foreach ($zones as $zone) {
+        if (($zone['account'] ?? '') == '') {
+            $zone['account'] = get_zone_account($zone['name'], 'admin');
+        }
         if (!check_account($zone))
             continue;
         if ($zone['kind'] == 'Slave')

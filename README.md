@@ -30,7 +30,7 @@ automatically show their domains and allow them to edit them.
 
 Requirements
 ============
-* A webserver running php
+* A webserver running PHP 8.4 or newer (tested with 8.4, 8.5 and 8.6)
 * php sqlite3
 * php curl
 * php with openssl support

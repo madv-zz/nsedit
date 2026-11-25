@@ -6,8 +6,9 @@ include_once('includes/misc.inc.php');
 
 global $errormsg, $blocklogin;
 
-$docroot = $_SERVER['DOCUMENT_ROOT'];
-if (preg_match("@$docroot@", $authdb) == 1) {
+$docroot = realpath($_SERVER['DOCUMENT_ROOT'] ?? '');
+$authdbpath = realpath($authdb);
+if ($docroot !== false && $authdbpath !== false && str_starts_with($authdbpath, $docroot . DIRECTORY_SEPARATOR)) {
     $blocklogin = TRUE;
     $errormsg = "You authdb is in your document root and probably downloadable. Please move it to a safe location!";
 }
@@ -25,12 +26,14 @@ if (!is_logged_in() and isset($_POST['formname']) and $_POST['formname'] === "lo
 }
 
 if (is_logged_in() and isset($_POST['formname']) and $_POST['formname'] === "changepwform") {
-    if (get_sess_user() == $_POST['username']) {
-        if (!update_user(get_sess_userid(), is_adminuser(), $_POST['password'])) {
+    if (!is_csrf_safe()) {
+        $errormsg = "Invalid CSRF token, please try again.\n";
+    } elseif (get_sess_user() == ($_POST['username'] ?? '')) {
+        if (!update_user(get_sess_userid(), is_adminuser(), $_POST['password'] ?? '')) {
             $errormsg = "Unable to update password!\n";
         }
     } else {
-        $errormsg = "You can only update your own password!".$_POST['username'];
+        $errormsg = "You can only update your own password!";
     }
 }
 
@@ -221,13 +224,13 @@ if ($blocklogin === TRUE) {
     <?php if (has_local_auth()) { ?>
     <div id="AboutMe">
         <div class="tables">
-            <p>Hi <?php echo get_sess_user(); ?>. You can change your password here.</p>
+            <p>Hi <?php echo htmlspecialchars(get_sess_user(), ENT_QUOTES); ?>. You can change your password here.</p>
 
             <form action="index.php" method="POST">
                 <table>
                     <tr>
                         <td class="label">Username:</td>
-                        <td><input readonly value="<?php echo get_sess_user(); ?>" id="username" type="text" name="username"></td>
+                        <td><input readonly value="<?php echo htmlspecialchars(get_sess_user(), ENT_QUOTES); ?>" id="username" type="text" name="username"></td>
                     </tr>
                     <tr>
                         <td class="label">Password:</td>
@@ -243,6 +246,7 @@ if ($blocklogin === TRUE) {
                     </tr>
                 </table>
                 <input type="hidden" name="formname" value="changepwform">
+                <input type="hidden" name="csrf-token" value="<?php echo htmlspecialchars(CSRF_TOKEN, ENT_QUOTES); ?>">
                 <input type="hidden" name="id" value="<?php echo get_sess_userid(); ?>">
             </form>
         </div>

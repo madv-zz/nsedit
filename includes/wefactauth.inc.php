@@ -10,7 +10,7 @@ class WeFactAPI {
     
     private $url;
     private $responseType;
-    private $apiKey;
+    private $api_key;
     
     function __construct(){
         global $wefactapiurl;
@@ -32,7 +32,7 @@ class WeFactAPI {
         curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, FALSE);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-        curl_setopt($ch, CURLOPT_TIMEOUT,'10');
+        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
         curl_setopt($ch, CURLOPT_POST, 1);
         curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($params));
         $curlResp = curl_exec($ch);
@@ -56,7 +56,7 @@ class WeFactAPI {
 
 
 function do_wefact_auth($u, $p) {
-    $wefact = new WeFactApi();
+    $wefact = new WeFactAPI();
     $r = $wefact->sendRequest('debtor', 'show', array(
         'DebtorCode' => $u));
 
