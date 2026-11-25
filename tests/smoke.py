@@ -110,6 +110,20 @@ soa_before = [r[2] for r in records(a, REV4, 'SOA')]
 bad = a.j('zones.php', 'createrecord', {'name': 'bad', 'type': 'A', 'content': 'not-an-ip', 'ttl': '300', 'disabled': '0', 'setptr': '1'}, zoneid=Z)
 check('PTR for an invalid address refused', bad, 'ERROR')
 expect('... and the record was not saved', not [r for r in records(a, Z) if r[0] == 'bad.' + Z])
+check('PTR by IP address and hostname without dot', a.j('zones.php', 'createrecord', {'name': '192.0.2.40', 'type': 'PTR', 'content': 'host40.example', 'ttl': '300', 'disabled': '0'}, zoneid=REV4))
+expect('... stored under the reverse name, hostname made absolute', ('40.2.0.192.in-addr.arpa.', 'PTR', 'host40.example.') in records(a, REV4, 'PTR'))
+check('IPv6 PTR by address', a.j('zones.php', 'createrecord', {'name': '2001:db8::40', 'type': 'PTR', 'content': 'host40.example.', 'ttl': '300', 'disabled': '0'}, zoneid=REV6))
+expect('... stored under the nibble name', ('0.4.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.' + REV6, 'PTR', 'host40.example.') in records(a, REV6, 'PTR'))
+check('PTR for an address outside the zone refused', a.j('zones.php', 'createrecord', {'name': '198.51.100.1', 'type': 'PTR', 'content': 'x.example', 'ttl': '300', 'disabled': '0'}, zoneid=REV4), 'ERROR')
+p40 = next(x for x in a.j('zones.php', 'listrecords', zoneid=REV4).get('Records', []) if x['name'] == '40.2.0.192.in-addr.arpa.')
+check('edit PTR: new address typed as IP', a.j('zones.php', 'editrecord', {'id': p40['id'], 'name': '192.0.2.41', 'type': 'PTR', 'content': 'host41.example',
+                                                                        'ttl': '300', 'disabled': '0'}, zoneid=REV4))
+ptrs = records(a, REV4, 'PTR')
+expect('... moved to the new reverse name', ('41.2.0.192.in-addr.arpa.', 'PTR', 'host41.example.') in ptrs and not [r for r in ptrs if r[0].startswith('40.')], ptrs)
+for zone in (REV4, REV6):  # later checks expect only the PTRs made by "Set PTR"
+    for x in a.j('zones.php', 'listrecords', zoneid=zone).get('Records', []):
+        if x['type'] == 'PTR' and x['content'] in ('host40.example.', 'host41.example.'):
+            check('remove test PTR ' + x['name'], a.j('zones.php', 'deleterecord', {'id': x['id']}, zoneid=zone))
 check('CNAME in the reverse zone', a.j('zones.php', 'createrecord', {'name': '13', 'type': 'CNAME', 'content': 'elsewhere.example.', 'ttl': '300', 'disabled': '0'}, zoneid=REV4))
 check('A record with PTR that PowerDNS refuses (CNAME there)', a.j('zones.php', 'createrecord', {'name': 'cn', 'type': 'A', 'content': '192.0.2.13', 'ttl': '300', 'disabled': '0', 'setptr': '1'}, zoneid=Z))
 expect('... the A record is saved anyway', ('cn.' + Z, 'A', '192.0.2.13') in records(a, Z))

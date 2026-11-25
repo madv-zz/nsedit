@@ -255,6 +255,14 @@ without the fix (except the SOA serial of reverse zones, see below).
 - `vm.sh` installs NetBSD with anita 2.18 (NetBSD's install-test tool, tarball checked against a fixed SHA256)
   and runs the VM without IPv6 in QEMU's network (pkgsrc's CDN answers with IPv6 first and downloads hung).
 
+## Step 15: PTR records by IP address
+
+- A PTR record can be added or changed in a reverse zone by typing the IP address as name and the
+  hostname as content, e.g. `185.69.204.123` and `mail.example.nl`, instead of `123.204.69.185.in-addr.arpa.`
+  and `mail.example.nl.`. nsedit turns the address (IPv4 or IPv6) into its reverse name, refuses an
+  address outside the zone, and adds the final dot to the hostname. Relative names (`123`) and full
+  reverse names keep working as before.
+
 ## Where it is now
 
 - Runs on PHP 8.4, 8.5 and 8.6 with PowerDNS Authoritative 4.9, 5.0 and 5.1: the smoke test and the

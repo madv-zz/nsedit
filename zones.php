@@ -181,6 +181,27 @@ function reverse_name($ip) {
     return implode('.', array_reverse(str_split(bin2hex($packed)))) . '.ip6.arpa.';
 }
 
+# PTR records may be entered the easy way: the IP address as name and a hostname
+# without the final dot as content. Turns an address into its reverse name (it must
+# be inside $zonename) and makes the hostname absolute. Other input is left alone.
+function ptr_shorthand($type, $name, $content, $zonename) {
+    if ($type !== 'PTR') {
+        return array($name, $content);
+    }
+    $revname = reverse_name(trim($name));
+    if ($revname !== false) {
+        if ($revname !== $zonename && !string_ends_with($revname, '.'.$zonename)) {
+            jtable_respond(null, 'error', htmlspecialchars(trim($name), ENT_QUOTES)." is not inside zone $zonename");
+        }
+        $name = $revname;
+    }
+    $content = trim($content);
+    if ($content !== '' && !string_ends_with($content, '.')) {
+        $content .= '.';
+    }
+    return array($name, $content);
+}
+
 # The most specific reverse zone for $revname that the current user may change, or false.
 # Zones of other users are skipped: for an ISP the reverse zones usually belong to the admin.
 function find_ptr_zone($api, $revname) {
@@ -513,6 +534,7 @@ case "createrecord":
     $name = isset($_POST['name']) ? $_POST['name'] : '';
     $type = $_POST['type'] ?? '';
     $content = $_POST['content'] ?? '';
+    list($name, $content) = ptr_shorthand($type, $name, $content, $zone->name);
 
     if ('' == $name) {
         $name = $zone->name;
@@ -566,6 +588,7 @@ case "editrecord":
     $name = $_POST['name'] ?? '';
     $content = $_POST['content'] ?? '';
     $type = $_POST['type'] ?? '';
+    list($name, $content) = ptr_shorthand($type, $name, $content, $zone->name);
     if (!_valid_label($name)) {
         jtable_respond(null, 'error', "Please only use [a-z0-9_/.-]");
     }
