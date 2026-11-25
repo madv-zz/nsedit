@@ -2,7 +2,10 @@ name: nsedit
 
 services:
   pdns:
-    build: pdns
+    build:
+      context: pdns
+      args:
+        PDNS_IMAGE: ${PDNS_IMAGE:-powerdns/pdns-auth-51:5.1.5}
     image: nsedit-pdns:local
     restart: unless-stopped
     environment:

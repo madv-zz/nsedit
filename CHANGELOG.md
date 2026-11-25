@@ -2,6 +2,20 @@
 
 What changed in this fork, from where it started to where it is now.
 
+## Tested versions
+
+Every pull request, every change on `master` and a weekly run test nsedit (`tests/smoke.py` and the browser
+test `tests/ui.py`) on every combination of:
+
+| Component | Versions | Note |
+|---|---|---|
+| PHP | 8.4, 8.5, 8.6 | FreeBSD, OpenBSD and pkgsrc ship all three (2026-11-25) |
+| PowerDNS Authoritative | 4.9.18, 5.0.8, 5.1.5 | FreeBSD and OpenBSD ship 5.1.5, pkgsrc 5.1.2 to 5.1.5 (2026-11-25) |
+| jQuery / jQuery UI / jTable | 3.7.1 / 1.14.2 / 2.6.0 | bundled in `vendor/` |
+
+The tests run in Docker on Linux (the `php:<version>-apache` and `powerdns/pdns-auth-*` images); nsedit
+itself only needs PHP with curl, sqlite3 and openssl, and the PowerDNS API.
+
 ## Starting point: upstream `master` at `7a18c00` (2025-03-11)
 
 The fork starts from [tuxis-ie/nsedit](https://github.com/tuxis-ie/nsedit) `master`
@@ -146,6 +160,14 @@ without the fix (except the SOA serial of reverse zones, see below).
   no longer end up in an image layer.
 - Smoke test checks that the export really contains the zone with its SOA (it only checked `Result`).
 
+## Step 8: tested against PowerDNS 4.9, 5.0 and 5.1
+
+- The PowerDNS version of the test stack is a setting (`PDNS_IMAGE` in `.env`, build argument of
+  `pdns/Dockerfile`); the default is now 5.1.5, the version FreeBSD and OpenBSD ship.
+- CI tests every combination of PHP 8.4/8.5/8.6 and PowerDNS 4.9.18/5.0.8/5.1.5 (9 jobs) and checks that
+  the intended PowerDNS version really runs. All passed without changes to nsedit.
+- "Tested versions" table at the top of this changelog.
+
 ## Where it is now
 
 - Runs on PHP 8.4, 8.5 and 8.6 with PowerDNS Authoritative 5.0: the smoke test passes
@@ -153,6 +175,6 @@ without the fix (except the SOA serial of reverse zones, see below).
 - Every change goes through a pull request with CI; `master` is protected.
 - jQuery 3.7.1, jQuery UI 1.14.2 and jTable 2.6.0 without known vulnerabilities; jTable itself is
   unmaintained, the browser test guards it.
-- Requires PowerDNS 4.4 or newer with the API enabled.
+- Tested with PowerDNS 4.9, 5.0 and 5.1 (API enabled) on PHP 8.4, 8.5 and 8.6; see Tested versions.
 - `docker compose up -d --build` starts PowerDNS and nsedit; see the README.
 - No Tuxis branding; the GPLv2 license and the credits to the original authors are kept.
