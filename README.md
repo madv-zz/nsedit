@@ -1,3 +1,49 @@
+About this fork
+===============
+
+This is a maintained fork of [tuxis-ie/nsedit](https://github.com/tuxis-ie/nsedit),
+made to run on **PHP 8.4 and newer** (tested with 8.4, 8.5 and 8.6) and **PowerDNS
+Authoritative 5.0**. It is not affiliated with or endorsed by Tuxis; all credits for
+the original work go to its authors (see [Credits](#credits)).
+
+Changes compared to upstream:
+
+* PHP 8: mcrypt (removed in PHP 7.2) replaced by openssl for the auto-login cookie,
+  no `null` arguments to internal functions, no dynamic properties, no warnings for
+  missing form fields, parse error in `rotate-logs.php` fixed.
+* PowerDNS 5: cloning zones works again (duplicate rrsets are rejected by PowerDNS 5),
+  and "Set PTR Record" is done by nsedit itself, because PowerDNS removed `set-ptr`
+  from its API in 4.4.
+* Security: access check on every zone action (a normal user could read and change
+  any zone by its name), CSRF token on the change password form, escaped output,
+  prepared statement for the initial admin user, constant time comparisons.
+* API client: Content-Type header is sent, https certificate verification works,
+  clear errors and timeouts when PowerDNS cannot be reached.
+* A Docker Compose stack (PowerDNS + nsedit) and a smoke test, see
+  [Running with Docker](#running-with-docker).
+* The Tuxis logo is replaced by a neutral NSEDIT logo.
+
+Running with Docker
+===================
+
+```sh
+cp .env.example .env     # fill in PDNS_API_KEY, NSEDIT_ADMIN_PASSWORD (and NSEDIT_SECRET)
+chmod 600 .env
+docker compose up -d --build
+```
+
+nsedit is then available on http://127.0.0.1:8080 and PowerDNS answers DNS
+queries on 127.0.0.1:1053 (change `WEB_BIND`, `WEB_PORT`, `DNS_BIND` and
+`DNS_PORT` in `.env`). The PowerDNS API is only reachable on the internal Docker
+network. Log in with `NSEDIT_ADMIN_USER` / `NSEDIT_ADMIN_PASSWORD`; these are only
+used on the first start, after that the users live in the `nsedit-data` volume.
+
+Choose another PHP version with `PHP_VERSION=8.6` in `.env`.
+
+Test a running instance with `python3 tests/smoke.py` (it creates and removes
+`*.example.` test zones, so don't run it against production). PHP warnings and
+deprecations end up in `docker compose logs nsedit`.
+
 What is nsedit?
 ===============
 
@@ -34,19 +80,14 @@ Requirements
 * php sqlite3
 * php curl
 * php with openssl support
-* PowerDNS with the JSON-api enabled. Version 4.0.0 or greater
+* PowerDNS with the JSON-api enabled. Version 4.4.0 or greater (tested with 5.0)
 
 Installing
 ==========
 
 * Via Git
     -  Run git clone in the directory where you want to run nsedit from
-    : ```git clone https://github.com/tuxis-ie/nsedit.git```
-
-    - Select tag v1.0 or skip this if you want to run from master
-    : ```git checkout tags/v1.0```
-* Via releases
-    - Download the zip-file from [Releases](https://github.com/tuxis-ie/nsedit/releases)
+    : ```git clone https://github.com/madv-zz/nsedit.git```
 
 * Copy ```includes/config.inc.php-dist``` to ```includes/config.inc.php``` and edit config.inc.php to your needs.
 
@@ -60,7 +101,7 @@ Other methods of installation (Unsupported)
 ===========================================
 
 * Baji Zsolt created a Suse image: https://susestudio.com/a/vvnMqa/powerdns-with-nsedit
-* Yury Evtikhov created the Docker file: https://github.com/tuxis-ie/nsedit/blob/master/Dockerfile
+* Yury Evtikhov created the original Docker file (replaced in this fork by the Docker Compose stack)
 
 Configuring PowerDNS
 ====================
@@ -87,3 +128,11 @@ Screenshots
 ![Slave zones](screenshots/slavezones.png)
 
 
+
+Credits
+=======
+
+nsedit was created by [Tuxis](https://www.tuxis.nl/) and its contributors, see the
+[upstream repository](https://github.com/tuxis-ie/nsedit). It is licensed under the
+GNU General Public License version 2, see [LICENSE](LICENSE); this fork keeps that
+license.

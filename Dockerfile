@@ -1,31 +1,18 @@
-FROM debian:bookworm
-MAINTAINER Yury Evtikhov <yury@evtikhov.info>
-#
-# This Dockerfile is intended only for test/development use.
-# It will be a really BAD idea to use it for production or public services.
-#
+# nsedit on PHP 8.4+ (Apache + mod_php). Choose the PHP version with --build-arg PHP_VERSION=8.5
+ARG PHP_VERSION=8.4
+FROM php:${PHP_VERSION}-apache
 
-ENV DEBIAN_FRONTEND noninteractive
+# Production php.ini; errors go to the container log, not to the browser (that would break jtable's JSON)
+RUN cp "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini" \
+ && printf '%s\n' 'error_reporting = E_ALL' 'display_errors = Off' 'log_errors = On' 'error_log = /dev/stderr' \
+      'expose_php = Off' 'session.use_strict_mode = 1' > "$PHP_INI_DIR/conf.d/zz-nsedit.ini"
 
-# Update and Upgrade system
-RUN apt-get -y update && \
-    apt-get -y install curl git-core php8.2-cli php8.2-curl php8.2-sqlite3 && \
-    rm -rf /var/lib/apt/lists/*
-RUN mkdir /app
-RUN git clone --recursive https://github.com/tuxis-ie/nsedit.git /app/nsedit
-RUN cp /app/nsedit/includes/config.inc.php-dist /app/nsedit/includes/config.inc.php
-COPY docker-entrypoint.sh /app/nsedit/docker-entrypoint.sh
-RUN chmod +x /app/nsedit/docker-entrypoint.sh
+COPY docker/apache-nsedit.conf /etc/apache2/conf-enabled/nsedit.conf
+COPY . /var/www/html/
+COPY docker/config.inc.php /var/www/html/includes/config.inc.php
 
-# Define working directory.
-VOLUME /app/nsedit
-WORKDIR /app/nsedit
-EXPOSE 8080
-
-CMD ["sh", "-c", "/app/nsedit/docker-entrypoint.sh"]
-
-#
-# Usage:
-#    docker build -t nseditphp .
-#    docker run -d --name pdns-nsedit -p 80:8080 nseditphp
-#
+# nsedit's user database lives outside the document root
+RUN mkdir -p /var/lib/nsedit && chown www-data:www-data /var/lib/nsedit \
+ && rm -rf /var/www/html/screenshots /var/www/html/docker /var/www/html/tests /var/www/html/Dockerfile /var/www/html/docker-compose.yml /var/www/html/.env.example \
+           /var/www/html/jquery-ui/tests /var/www/html/jquery-ui/demos
+VOLUME /var/lib/nsedit
