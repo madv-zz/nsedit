@@ -2,6 +2,33 @@
 
 What changed in this fork, from where it started to where it is now.
 
+## v2.1.0 (2026-11-25)
+
+nsedit is now tested on NetBSD as well, so on all three BSDs. The PHP and JavaScript code is the same as in
+v2.0.0: coming from v2.0.0 there is nothing to change.
+
+**What it brings**
+
+- **NetBSD 11.1** with pkgsrc: nginx + php-fpm (PHP 8.4.28 and 8.5.13), PowerDNS 5.1.4 with the PostgreSQL
+  backend. All checks pass, see *Tested versions* and step 12.
+- `contrib/netbsd/`: a reference setup (`setup.sh`) and `vm.sh` to install, deploy and test NetBSD in a VM on a
+  Linux laptop, like `contrib/freebsd/` and `contrib/openbsd/`.
+
+**Good to know for NetBSD**
+
+- pkgsrc has no sqlite backend for PowerDNS: use `powerdns-pgsql` with `postgresql16-server` (the backend is built
+  against the PostgreSQL 16 client). nsedit only talks to the PowerDNS API and works with any backend.
+- Download packages from `cdn.netbsd.org`; `ftp.netbsd.org` was very slow.
+
+**Download and verify**
+
+```sh
+curl -LO https://github.com/madv-zz/nsedit/releases/download/v2.1.0/nsedit-2.1.0.tar.gz
+curl -LO https://github.com/madv-zz/nsedit/releases/download/v2.1.0/nsedit-2.1.0.tar.gz.sha256
+sha256sum -c nsedit-2.1.0.tar.gz.sha256
+gh attestation verify nsedit-2.1.0.tar.gz -R madv-zz/nsedit
+```
+
 ## v2.0.0 (2026-11-25)
 
 First release of this fork of [tuxis-ie/nsedit](https://github.com/tuxis-ie/nsedit) (upstream's last release is
