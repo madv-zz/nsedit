@@ -9,7 +9,7 @@ Runs in the Playwright image, for example:
 
 Reads NSEDIT_ADMIN_USER / NSEDIT_ADMIN_PASSWORD from .env (never prints them). Fails on every JavaScript
 error, failed request or console error/warning, so a library update that breaks the UI is caught.
-Creates and removes the zone uitest.example. and the user uitest@example.com.
+Creates and removes the zones uitest.example. and 113.0.203.in-addr.arpa. and the user uitest@example.com.
 """
 import os
 import re
@@ -19,6 +19,7 @@ from playwright.sync_api import expect, sync_playwright
 
 BASE = sys.argv[1] if len(sys.argv) > 1 else 'http://127.0.0.1:8080'
 ZONE = 'uitest.example.'
+REVZONE = '113.0.203.in-addr.arpa.'
 USER = 'uitest@example.com'
 EXPECTED = {'jQuery.fn.jquery': '3.7.1', 'jQuery.ui.version': '1.14.2'}
 
@@ -88,15 +89,15 @@ def child_table(page):
 
 def cleanup(page):
     """Remove leftovers of an earlier run through the API of nsedit itself (same session and csrf token)."""
-    page.evaluate("""async ([zone, user]) => {
+    page.evaluate("""async ([zones, user]) => {
         const post = (url, data) => fetch(url, {method: 'POST', body: new URLSearchParams(data),
             headers: {'X-CSRF-Token': window.csrf_token}}).then(r => r.json()).catch(() => null);
-        await post('zones.php?action=delete', {id: zone});
+        for (const z of zones) await post('zones.php?action=delete', {id: z});
         const users = await post('users.php?action=list', {});
         for (const u of (users && users.Records) || []) {
             if (u.emailaddress === user) await post('users.php?action=delete', {id: u.id});
         }
-    }""", [ZONE, USER])
+    }""", [[ZONE, REVZONE], USER])
 
 
 def zones(page):
@@ -124,6 +125,14 @@ def zones(page):
     row = child_table(page).locator('tr.jtable-data-row', has_text='192.0.2.50')
     expect(row).to_have_count(1)
     step('add record')
+
+    expect(page.locator('.ui-dialog:visible')).to_have_count(0)  # the add dialog fades out
+    child_table(page).locator('.jtable-toolbar-item-add-record').click()
+    form = page.locator('.ui-dialog:visible #jtable-create-form')
+    expect(form.locator('#Edit-name')).to_have_attribute('title', re.compile('relative to the zone'))
+    page.locator('.ui-dialog:visible').get_by_role('button', name='Cancel').click()
+    expect(page.locator('.ui-dialog:visible')).to_have_count(0)
+    step('tooltip on the Label field of a forward zone')
 
     row.locator('.jtable-edit-command-button').click()
     form = page.locator('.ui-dialog:visible #jtable-edit-form')
@@ -169,6 +178,34 @@ def zones(page):
     clone.get_by_role('button', name='Cancel').click()
     expect(clone).to_be_hidden()
     step('clone dialog opens and closes')
+
+
+def reverse_ptr(page):
+    """Reverse zone: the Label tooltip names an address of the zone; a PTR can be added by IP address."""
+    page.click('#zoneadmin')
+    page.click('#MasterZones .jtable-toolbar-item-add-record')
+    form = page.locator('.ui-dialog:visible #jtable-create-form')
+    form.locator('#Edit-name').fill(REVZONE)
+    dialog_button(page, 'AddRecordDialogSaveButton')
+    expect(page.locator('.ui-dialog:visible')).to_have_count(0)
+    search_zones(page, '113.0.203')
+    master_row(page, REVZONE).locator('td.domain').click()
+    expect(child_table(page).locator('.jtable-title-text')).to_contain_text('Records in ' + REVZONE)
+    child_table(page).locator('.jtable-toolbar-item-add-record').click()
+    form = page.locator('.ui-dialog:visible #jtable-create-form')
+    expect(form.locator('#Edit-name')).to_have_attribute('title', re.compile(r'IP address \(e\.g\. 203\.0\.113\.10\)'))
+    step('tooltip on the Label field of a reverse zone')
+
+    form.locator('#Edit-name').fill('203.0.113.25')
+    form.locator('#Edit-type').select_option('PTR')
+    form.locator('#Edit-content').fill('host25.example')
+    dialog_button(page, 'AddRecordDialogSaveButton')
+    expect(child_table(page).locator('tr.jtable-data-row', has_text='host25.example.')).to_have_count(1)
+    step('add PTR by IP address through the dialog')
+
+    master_row(page, REVZONE).locator('.jtable-delete-command-button').click()
+    dialog_button(page, 'DeleteDialogButton')
+    expect(master_row(page, REVZONE)).to_have_count(0)
 
 
 def users(page):
@@ -232,6 +269,7 @@ def main():
 
         try:
             zones(page)
+            reverse_ptr(page)
             users(page)
             logs(page)
             delete_zone(page)

@@ -262,6 +262,8 @@ without the fix (except the SOA serial of reverse zones, see below).
   and `mail.example.nl.`. nsedit turns the address (IPv4 or IPv6) into its reverse name, refuses an
   address outside the zone, and adds the final dot to the hostname. Relative names (`123`) and full
   reverse names keep working as before.
+- Tooltip on the **Label** field of the record form: in a reverse zone it names an address of that zone
+  as example (e.g. `203.0.113.10`), in a forward zone it explains relative and absolute names.
 
 ## Where it is now
 
