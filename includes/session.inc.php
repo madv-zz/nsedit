@@ -218,7 +218,7 @@ function _check_session() {
         }
         else
         {
-            header('Status: 403 Forbidden');
+            http_response_code(403);
             exit(0);
         }
     }

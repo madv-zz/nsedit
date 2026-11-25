@@ -98,6 +98,12 @@ with the current jQuery are in `js/jtable-fixes.js`. jTable is unmaintained sinc
 a library, run `tests/ui.py` (CI does). Dependabot does not see these files. Dependabot opens update pull requests for GitHub Actions and Docker
 images after a cooldown of 14 days. Security issues: see [SECURITY.md](SECURITY.md).
 
+FreeBSD
+=======
+
+nsedit is tested on FreeBSD 15.1 in jails (PowerDNS in one jail, nginx + php-fpm + nsedit in another). A
+reference configuration and a script to run it in a VM are in [contrib/freebsd/](contrib/freebsd/README.md).
+
 Requirements
 ============
 * A webserver running PHP 8.4 or newer (tested with 8.4, 8.5 and 8.6)
