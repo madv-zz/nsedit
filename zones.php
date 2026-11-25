@@ -27,7 +27,7 @@ function _valid_label($name) {
 }
 
 function decode_record_id($id) {
-    $record = json_decode($id, 1);
+    $record = json_decode($id, true);
     if (!$record
         || !isset($record['name'])
         || !isset($record['type'])

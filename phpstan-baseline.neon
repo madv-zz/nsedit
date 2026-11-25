@@ -1,0 +1,103 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Variable \$defaults might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: includes/misc.inc.php
+
+		-
+			message: '#^Constant CSRF_TOKEN not found\.$#'
+			identifier: constant.notFound
+			count: 2
+			path: index.php
+
+		-
+			message: '#^Variable \$allowclearlogs might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: index.php
+
+		-
+			message: '#^Variable \$allowrotatelogs might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: index.php
+
+		-
+			message: '#^Variable \$allowzoneadd might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: index.php
+
+		-
+			message: '#^Variable \$authdb might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: index.php
+
+		-
+			message: '#^Variable \$defaults might not be defined\.$#'
+			identifier: variable.undefined
+			count: 7
+			path: index.php
+
+		-
+			message: '#^Variable \$logo might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: index.php
+
+		-
+			message: '#^Variable \$menutype might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: index.php
+
+		-
+			message: '#^Variable \$allowclearlogs might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: logs.php
+
+		-
+			message: '#^Variable \$allowrotatelogs might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: logs.php
+
+		-
+			message: '#^Variable \$logging might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: logs.php
+
+		-
+			message: '#^Variable \$logsdirectory might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
+			path: logs.php
+
+		-
+			message: '#^Variable \$allowrotatelogs might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: rotate-logs.php
+
+		-
+			message: '#^Variable \$action might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: zones.php
+
+		-
+			message: '#^Variable \$allowzoneadd might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
+			path: zones.php
+
+		-
+			message: '#^Variable \$defaults might not be defined\.$#'
+			identifier: variable.undefined
+			count: 10
+			path: zones.php

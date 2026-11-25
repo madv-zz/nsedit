@@ -79,10 +79,32 @@ PowerDNS 5 that code had these problems:
   Studio image no longer exists (SUSE Studio was shut down in 2017) and the original
   Docker file by Yury Evtikhov was replaced in step 2.
 
+## Step 5: CI, repository protection and hardening
+
+- `.github/workflows/ci.yml`: the checks of the Forgejo setup as separate jobs (gitleaks, dependencies,
+  lint, quality, bandit, docker-config, tests, docker-images) and a required summary job `check`; runs on
+  every pull request, on `master` and weekly. Actions pinned on commit SHA, tool versions pinned.
+- `ci/vendored-js.py`: checks the bundled jQuery, jQuery UI and jTable against OSV. It found 8 known XSS
+  vulnerabilities in jQuery 1.10.2 and jQuery UI 1.11.x; they are accepted in `.osv-ignore` until
+  2027-01-31, the upgrade is issue #2.
+- PHPStan level 5 with a baseline of the existing findings (global configuration variables); two real type
+  errors fixed (`curl_setopt()` and `json_decode()` got an int instead of a bool), unused property removed.
+- nsedit container runs as `www-data` instead of root (Apache on port 8080) and has a health check.
+- PowerDNS runs from an own image (`pdns/Dockerfile`) that installs the Debian security updates the
+  official image does not have yet (8 CRITICAL vulnerabilities fixed); the nsedit image does the same.
+  Remaining findings without a fix are accepted in `.trivyignore.yaml` until 2027-02-25.
+- Dependabot for GitHub Actions and Docker images (14 days cooldown), `SECURITY.md` with private
+  vulnerability reporting.
+- GitHub settings (not in git): ruleset on `master` (pull request and green `check` required, no force
+  push or deletion, also not for admins), secret scanning with push protection, Dependabot alerts and
+  security updates, private vulnerability reporting, issues enabled.
+
 ## Where it is now
 
 - Runs on PHP 8.4, 8.5 and 8.6 with PowerDNS Authoritative 5.0: the smoke test passes
   all checks on all three versions, without any PHP warning or deprecation in the log.
+- Every change goes through a pull request with CI; `master` is protected.
+- Open: the bundled jQuery and jQuery UI have known XSS vulnerabilities (issue #2).
 - Requires PowerDNS 4.4 or newer with the API enabled.
 - `docker compose up -d --build` starts PowerDNS and nsedit; see the README.
 - No Tuxis branding; the GPLv2 license and the credits to the original authors are kept.

@@ -1,0 +1,18 @@
+# Static analysis (PHPStan). Existing findings are in phpstan-baseline.neon; new code may not add new ones.
+# CI copies docker/config.inc.php to includes/config.inc.php first. Regenerate the baseline only when you
+# fixed findings: phpstan analyse --generate-baseline
+includes:
+    - phpstan-baseline.neon
+parameters:
+    level: 5
+    phpVersion:
+        min: 80400
+        max: 80699
+    paths:
+        - index.php
+        - zones.php
+        - users.php
+        - logs.php
+        - rotate-logs.php
+        - includes
+        - docker/config.inc.php

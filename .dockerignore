@@ -1,4 +1,11 @@
 .git
+.github
 .env
+screenshots
 tests
+ci
+pdns
 *.md
+phpstan*.neon
+.trivyignore.yaml
+.gitleaksignore

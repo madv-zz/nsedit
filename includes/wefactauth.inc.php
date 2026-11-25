@@ -9,7 +9,6 @@ include_once('misc.inc.php');
 class WeFactAPI {
     
     private $url;
-    private $responseType;
     private $api_key;
     
     function __construct(){
@@ -31,9 +30,9 @@ class WeFactAPI {
         curl_setopt($ch,CURLOPT_URL, $this->url);
         curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, FALSE);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, 10);
-        curl_setopt($ch, CURLOPT_POST, 1);
+        curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($params));
         $curlResp = curl_exec($ch);
         $curlError = curl_error($ch);

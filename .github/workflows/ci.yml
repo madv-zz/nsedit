@@ -1,0 +1,185 @@
+# CI: every check is its own job, so you see per check whether it passes. Job "check" sums them up and is the
+# required status check for merging into master (branch ruleset). Tool versions are pinned and at least 14 days old.
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [master]
+  schedule:
+    - cron: "0 6 * * 1"  # weekly, also without changes: newly known vulnerabilities
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GITLEAKS_IMAGE: zricethezav/gitleaks:v8.30.1
+  TRIVY_IMAGE: aquasec/trivy:0.76.2
+  PHPSTAN_VERSION: 2.3.5
+  PHPSTAN_SHA256: 4b3ed7850a20b092331bd1040e4f54a1d3c0559b4cf006431073997ebcb4324b
+  RUFF_VERSION: 0.17.4
+  BANDIT_VERSION: 1.9.4
+
+jobs:
+  gitleaks:
+    name: gitleaks (secrets in the whole history)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - run: >-
+          docker run --rm -v "$PWD:/repo" -w /repo
+          -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0='*'
+          "$GITLEAKS_IMAGE" git --no-banner --redact /repo
+
+  dependencies:
+    name: dependencies (trivy fs, bundled JavaScript)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: trivy fs
+        run: >-
+          docker run --rm -v "$PWD:/repo:ro" "$TRIVY_IMAGE"
+          fs -q --scanners vuln --severity HIGH,CRITICAL --exit-code 1 --ignorefile /repo/.trivyignore.yaml /repo
+      - name: bundled JavaScript libraries against OSV
+        run: python3 -I ci/vendored-js.py
+
+  lint:
+    name: lint (php ${{ matrix.php }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ["8.4", "8.5", "8.6"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: php -l
+        run: >-
+          docker run --rm -v "$PWD:/src:ro" -w /src "php:${{ matrix.php }}-cli" sh -ec
+          'git_files=$(find . -name "*.php" -not -path "./jquery-ui/*" -not -path "./jtable/*" -not -path "./js/*");
+          for f in $git_files; do php -l "$f" >/dev/null || exit 1; done; echo "$(echo $git_files | wc -w) files OK"'
+
+  quality:
+    name: quality (phpstan, ruff)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: phpstan (level 5, baseline for existing findings)
+        run: |
+          curl -fsSL -o /tmp/phpstan.phar "https://github.com/phpstan/phpstan/releases/download/${PHPSTAN_VERSION}/phpstan.phar"
+          echo "${PHPSTAN_SHA256}  /tmp/phpstan.phar" | sha256sum -c -
+          cp docker/config.inc.php includes/config.inc.php
+          docker run --rm -v "$PWD:/app" -v /tmp/phpstan.phar:/phpstan.phar:ro -w /app php:8.4-cli \
+            php -d memory_limit=1G /phpstan.phar analyse --no-progress --error-format=github
+      - name: ruff (lint and complexity) on the Python scripts
+        run: |
+          pipx run "ruff==${RUFF_VERSION}" check tests ci
+          pipx run "ruff==${RUFF_VERSION}" check --select C901 --config 'lint.mccabe.max-complexity=25' tests ci
+
+  bandit:
+    name: bandit (unsafe Python code)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: pipx run "bandit==${BANDIT_VERSION}" -q -r tests ci --severity-level medium --confidence-level medium
+
+  docker-config:
+    name: docker-config (trivy config)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: >-
+          docker run --rm -v "$PWD:/repo:ro" "$TRIVY_IMAGE"
+          config -q --severity HIGH,CRITICAL --exit-code 1 --ignorefile /repo/.trivyignore.yaml /repo
+
+  tests:
+    name: tests (php ${{ matrix.php }}, PowerDNS 5)
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ["8.4", "8.5", "8.6"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: .env with random secrets
+        run: |
+          umask 077
+          {
+            echo "PHP_VERSION=${{ matrix.php }}"
+            echo "PDNS_API_KEY=$(openssl rand -hex 24)"
+            echo "NSEDIT_ADMIN_USER=admin"
+            echo "NSEDIT_ADMIN_PASSWORD=$(openssl rand -hex 16)"
+            echo "NSEDIT_SECRET=$(openssl rand -hex 32)"
+          } > .env
+      - name: start PowerDNS and nsedit
+        run: docker compose up -d --build --wait --wait-timeout 120
+      - name: smoke test
+        run: python3 -I tests/smoke.py
+      - name: no PHP warnings, notices or deprecations
+        run: |
+          if docker compose logs nsedit | grep -E 'PHP (Warning|Notice|Deprecated|Fatal|Parse)'; then exit 1; fi
+      - name: DNS answers from PowerDNS
+        run: |
+          KEEP=1 python3 -I tests/smoke.py >/dev/null
+          test "$(dig +short @127.0.0.1 -p 1053 mail.smoketest.example A)" = "192.0.2.11"
+          test "$(dig +short @127.0.0.1 -p 1053 -x 192.0.2.11)" = "mail.smoketest.example."
+      - name: internal files are not served
+        run: |
+          for path in includes/config.inc.php includes/scheme.sql templates.d/template.json.example rotate-logs.php; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8080/$path")
+            echo "$path $code"; test "$code" = 403
+          done
+      - name: logs
+        if: failure()
+        run: docker compose logs
+
+  docker-images:
+    name: docker-images (trivy image, php ${{ matrix.php }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ["8.4", "8.5", "8.6"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: build the images
+        run: |
+          printf 'PHP_VERSION=%s\nPDNS_API_KEY=x\nNSEDIT_ADMIN_PASSWORD=x\n' "${{ matrix.php }}" > .env
+          docker compose build --pull
+      - name: scan the built images (CRITICAL)
+        run: |
+          for img in "nsedit-php:${{ matrix.php }}-local" nsedit-pdns:local; do
+            echo "-- $img"
+            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/repo:ro" "$TRIVY_IMAGE" \
+              image -q --severity CRITICAL --exit-code 1 --ignorefile /repo/.trivyignore.yaml "$img"
+          done
+
+  check:
+    name: check
+    if: ${{ always() }}
+    needs: [gitleaks, dependencies, lint, quality, bandit, docker-config, tests, docker-images]
+    runs-on: ubuntu-24.04
+    steps:
+      - run: test "$FAILED" = "false"
+        env:
+          FAILED: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}

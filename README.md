@@ -13,6 +13,7 @@ Main changes compared to upstream (details in [CHANGELOG.md](CHANGELOG.md)):
 * Security fixes: access check on every zone action, CSRF on the password form, escaping.
 * Docker Compose stack (PowerDNS + nsedit) and a smoke test.
 * Tuxis branding (logo and screenshots) removed.
+* CI on every pull request and weekly: secrets, vulnerabilities, PHP lint and static analysis, the Docker stack on PHP 8.4, 8.5 and 8.6. See [Development](#development).
 
 Running with Docker
 ===================
@@ -64,6 +65,29 @@ WeFact Login support
 product_. nsedit can authenticate against the WeFact API, which allows your
 customers to login on nsedit with their WeFact credentials. It will
 automatically show their domains and allow them to edit them.
+
+Development
+===========
+
+`master` is protected: changes go through a pull request, and merging needs a green `check`
+(the CI in `.github/workflows/ci.yml`; force pushes and deleting `master` are blocked, also for admins).
+CI runs on every pull request, on `master` and weekly, each check as its own job:
+
+| Job | What |
+|---|---|
+| `gitleaks` | secrets in the whole git history |
+| `dependencies` | trivy fs, and the bundled JavaScript libraries against OSV (`ci/vendored-js.py`) |
+| `lint` | `php -l` on PHP 8.4, 8.5 and 8.6 |
+| `quality` | PHPStan level 5 (existing findings in `phpstan-baseline.neon`), ruff on the Python scripts |
+| `bandit` | unsafe code in the Python scripts |
+| `docker-config` | trivy config on the Dockerfiles and compose file |
+| `tests` | Docker stack with PowerDNS 5 on PHP 8.4, 8.5 and 8.6: `tests/smoke.py`, no PHP warnings, DNS answers, internal files not served |
+| `docker-images` | trivy image (CRITICAL) on the built images |
+| `check` | sums up the jobs above; required for merging |
+
+Accepted findings always have a reason and an expiry date: `.trivyignore.yaml` (trivy) and `.osv-ignore`
+(bundled JavaScript, see issue #2). Dependabot opens update pull requests for GitHub Actions and Docker
+images after a cooldown of 14 days. Security issues: see [SECURITY.md](SECURITY.md).
 
 Requirements
 ============

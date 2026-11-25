@@ -6,14 +6,21 @@ Usage: [KEEP=1] tests/smoke.py [base-url]      (default base-url: http://127.0.0
 Reads NSEDIT_ADMIN_USER / NSEDIT_ADMIN_PASSWORD from .env in the repository root and
 never prints them. KEEP=1 leaves the test zones in place, e.g. to query them with dig.
 """
-import http.cookiejar, json, os, re, sys, urllib.parse, urllib.request
+import http.cookiejar
+import json
+import os
+import re
+import sys
+import urllib.parse
+import urllib.request
 
 BASE = sys.argv[1] if len(sys.argv) > 1 else 'http://127.0.0.1:8080'
 env = {}
-for line in open(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '.env')):
-    if '=' in line and not line.startswith('#'):
-        k, v = line.rstrip('\n').split('=', 1)
-        env[k] = v
+with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '.env'), encoding='utf-8') as envfile:
+    for line in envfile:
+        if '=' in line and not line.startswith('#'):
+            k, v = line.rstrip('\n').split('=', 1)
+            env[k] = v
 fails = 0
 
 Z = 'smoketest.example.'
@@ -103,7 +110,7 @@ expect('IPv6 PTR created', records(a, REV6, 'PTR') == [('1.0.0.0.0.0.0.0.0.0.0.0
 expect('TXT is quoted', ('smoketest.example.', 'TXT', '"v=spf1 -all"') in records(a, Z))
 recs = check('list records (sorted)', a.j('zones.php', 'listrecords', zoneid=Z, jtSorting='type ASC'))
 check('filter records', a.j('zones.php', 'listrecords', {'label': 'www', 'type': 'A'}, zoneid=Z))
-www = [x for x in recs.get('Records', []) if x['name'].startswith('www.')][0]
+www = next(x for x in recs.get('Records', []) if x['name'].startswith('www.'))
 e = check('edit record', a.j('zones.php', 'editrecord', {'id': www['id'], 'name': www['name'], 'type': 'A', 'content': '192.0.2.20',
                                                           'ttl': '600', 'disabled': '1', 'setptr': '0'}, zoneid=Z))
 check('delete record', a.j('zones.php', 'deleterecord', {'id': e['Record']['id']}, zoneid=Z))
@@ -121,7 +128,7 @@ check('change slave masters', a.j('zones.php', 'update', {'id': SLAVE, 'masters'
 check('create user', a.j('users.php', 'create', {'emailaddress': CUST, 'password': 'Customer-test-123', 'isadmin': '0'}))
 check('list users', a.j('users.php', 'list'))
 check('user options', a.j('users.php', 'listoptions'))
-uid = [u['id'] for u in a.j('users.php', 'list')['Records'] if u['emailaddress'] == CUST][0]
+uid = next(u['id'] for u in a.j('users.php', 'list')['Records'] if u['emailaddress'] == CUST)
 check('update user', a.j('users.php', 'update', {'id': uid, 'isadmin': '0', 'password': 'Customer-test-456'}))
 check('give clone to customer', a.j('zones.php', 'update', {'id': CLONE, 'account': CUST}))
 
