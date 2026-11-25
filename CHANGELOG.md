@@ -93,6 +93,9 @@ PowerDNS 5 that code had these problems:
 - PowerDNS runs from an own image (`pdns/Dockerfile`) that installs the Debian security updates the
   official image does not have yet (8 CRITICAL vulnerabilities fixed); the nsedit image does the same.
   Remaining findings without a fix are accepted in `.trivyignore.yaml` until 2027-02-25.
+- Build tooling of the bundled jQuery UI removed (`jquery-ui/package.json`, `Gruntfile.js`, `build/`): nsedit
+  only loads the JavaScript files, and Dependabot reported vulnerabilities in that unused tooling (grunt).
+  The version is kept in `jquery-ui/VERSION` for `ci/vendored-js.py`.
 - Dependabot for GitHub Actions and Docker images (14 days cooldown), `SECURITY.md` with private
   vulnerability reporting.
 - GitHub settings (not in git): ruleset on `master` (pull request and green `check` required, no force

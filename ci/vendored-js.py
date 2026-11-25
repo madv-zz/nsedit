@@ -26,7 +26,8 @@ def version_from(path, pattern):
 # npm package name -> (file that holds the version, regular expression for the version)
 LIBRARIES = {
     "jquery": ("jquery-ui/external/jquery/jquery.js", r"jQuery JavaScript Library v(\S+)"),
-    "jquery-ui": ("jquery-ui/package.json", r'"version":\s*"([^"]+)"'),
+    # unbuilt source checkout of jQuery UI (the files say @VERSION); version from its old package.json
+    "jquery-ui": ("jquery-ui/VERSION", r"^(\S+)"),
     "jtable": ("jtable/lib/jquery.jtable.js", r"jTable (\d+\.\d+\.\d+)"),
 }
 
