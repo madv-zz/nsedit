@@ -71,6 +71,11 @@ automatically show their domains and allow them to edit them.
 Development
 ===========
 
+Releases: set the version in `VERSION`, add a `## v<version> (date)` section at the top of `CHANGELOG.md` (it is
+used as the release notes) and merge that. When CI is green on `master`, push the tag `v<version>`: the
+release workflow builds the tarball, its SHA256 and a build provenance attestation and publishes the release.
+Tags `v*` cannot be deleted or moved.
+
 `master` is protected: changes go through a pull request, and merging needs a green `check`
 (the CI in `.github/workflows/ci.yml`) and a green `test-plan` (`.github/workflows/test-plan.yml`: every
 checkbox in the pull request description is ticked, see `ci/test-plan.py`; it runs again when the
@@ -117,6 +122,10 @@ Requirements
 Installing
 ==========
 
+* From a release (recommended): download `nsedit-<version>.tar.gz` and its `.sha256` from
+  [Releases](https://github.com/madv-zz/nsedit/releases), check it (`sha256sum -c`, and optionally
+  `gh attestation verify nsedit-<version>.tar.gz -R madv-zz/nsedit`) and unpack it where nsedit will run.
+  The tarball holds nsedit and the BSD reference setups in `contrib/`, without the development and CI files.
 * Via Git
     -  Run git clone in the directory where you want to run nsedit from
     : ```git clone https://github.com/madv-zz/nsedit.git```

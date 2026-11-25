@@ -1,0 +1,84 @@
+# Release: pushing a tag v<version> (matching VERSION) builds nsedit-<version>.tar.gz without the development
+# files (.gitattributes export-ignore), its SHA256 and a build provenance attestation, and publishes a GitHub
+# release with the notes from the "## v<version>" section of CHANGELOG.md. Only for a commit on which the
+# required CI check passed. Pull requests that touch the release files run the same build as a dry run.
+name: release
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths: [".github/workflows/release.yml", ".gitattributes", "VERSION", "CHANGELOG.md", "ci/release-notes.sh"]
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write      # create the release (tag pushes only)
+      id-token: write      # build provenance
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: version
+        id: version
+        run: |
+          version=$(cat VERSION)
+          echo "version $version"
+          if [ "$GITHUB_EVENT_NAME" = push ] && [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "tag $GITHUB_REF_NAME does not match VERSION $version"; exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: CI passed on this commit
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # wait at most 45 minutes for the required check of the tagged commit
+          for _ in $(seq 1 90); do
+            result=$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs?check_name=check" \
+              --jq '[.check_runs[] | select(.status == "completed")][0].conclusion // ""')
+            [ -n "$result" ] && break
+            sleep 30
+          done
+          echo "check on $GITHUB_SHA: ${result:-not finished}"
+          test "$result" = success
+      - name: tarball
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          name="nsedit-$VERSION"
+          git archive --format=tar.gz --prefix="$name/" -o "$name.tar.gz" HEAD
+          sha256sum "$name.tar.gz" > "$name.tar.gz.sha256"
+          tar -tzf "$name.tar.gz" > contents.txt
+          for must in index.php zones.php includes/misc.inc.php vendor/jquery/jquery.min.js contrib/freebsd/README.md \
+                      contrib/openbsd/README.md CHANGELOG.md LICENSE VERSION; do
+            grep -qx "$name/$must" contents.txt || { echo "missing: $must"; exit 1; }
+          done
+          if grep -E "^$name/(\.github|ci|tests|docker|pdns)/|^$name/(Dockerfile|docker-compose\.yml|\.env.*|phpstan.*)$" contents.txt; then
+            echo "development files in the tarball"; exit 1
+          fi
+          echo "$(wc -l < contents.txt) entries"; cat "$name.tar.gz.sha256"
+      - name: release notes
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          ci/release-notes.sh "$VERSION" > notes.md
+          test -s notes.md || { echo "no section '## v$VERSION' in CHANGELOG.md"; exit 1; }
+          cat notes.md
+      - name: build provenance
+        if: github.event_name == 'push'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: nsedit-${{ steps.version.outputs.version }}.tar.gz
+      - name: publish the release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "nsedit-$VERSION.tar.gz" "nsedit-$VERSION.tar.gz.sha256" \
+            --verify-tag --title "nsedit $VERSION" --notes-file notes.md
