@@ -2,6 +2,39 @@
 
 What changed in this fork, from where it started to where it is now.
 
+## v2.2.0 (2026-11-25)
+
+Reverse DNS made easier, and a dark theme. Details in steps 13 to 16.
+
+**What it brings**
+
+- **Add reverse zones for a prefix** (#13): one or more prefixes such as `185.69.204.0/22` or
+  `2a06:900::/29` give every reverse zone that covers them (IPv4 /8, /16 or /24; IPv6 on a nibble), with
+  account, type and nameservers. Existing zones are left alone; at most 256 zones per request. Admins only.
+- **Move records from the parent zone** (#14): when a zone is split off, for example a customer's /56 out of
+  a /32, the records inside it move from the parent to the new zone, so they do not become invisible. On by
+  default when adding a zone; NS and DS records of the delegation stay in the parent.
+- **PTR records by IP address** (#15): in a reverse zone, type `185.69.204.123` and `mail.example.nl`
+  instead of `123.204.69.185.in-addr.arpa.` and `mail.example.nl.`.
+- **Dark mode** (#16): follows the system setting, or pick light or dark with the **Theme** button.
+
+**Upgrading from v2.1.0**
+
+- Nothing to change in the configuration or the user database.
+- New files: `css/dark.css` and `js/theme.js`; copy the whole release, not only the PHP files.
+
+**Tested**: CI on PHP 8.4, 8.5 and 8.6 with PowerDNS 4.9, 5.0 and 5.1; FreeBSD 15.1, OpenBSD 8.0 and NetBSD 11.1
+(PHP 8.4) with `contrib/vm-checks.sh`.
+
+**Download and verify**
+
+```sh
+curl -LO https://github.com/madv-zz/nsedit/releases/download/v2.2.0/nsedit-2.2.0.tar.gz
+curl -LO https://github.com/madv-zz/nsedit/releases/download/v2.2.0/nsedit-2.2.0.tar.gz.sha256
+sha256sum -c nsedit-2.2.0.tar.gz.sha256
+gh attestation verify nsedit-2.2.0.tar.gz -R madv-zz/nsedit
+```
+
 ## v2.1.0 (2026-11-25)
 
 nsedit is now tested on NetBSD as well, so on all three BSDs. The PHP and JavaScript code is the same as in
@@ -312,19 +345,6 @@ without the fix (except the SOA serial of reverse zones, see below).
 - Tooltip on the **Label** field of the record form: in a reverse zone it names an address of that zone
   as example (e.g. `203.0.113.10`), in a forward zone it explains relative and absolute names.
 
-## Where it is now
-
-- Runs on PHP 8.4, 8.5 and 8.6 with PowerDNS Authoritative 4.9, 5.0 and 5.1: the smoke test and the
-  browser test pass on every combination, without any PHP warning or deprecation in the log.
-- Every change goes through a pull request with CI and a ticked test plan; `master` and release tags are
-  protected; releases with a checked tarball from v2.0.0 on.
-- Runs on FreeBSD in jails, OpenBSD in a chroot and NetBSD with pkgsrc; reference setups in `contrib/`.
-- jQuery 3.7.1, jQuery UI 1.14.2 and jTable 2.6.0 without known vulnerabilities; jTable itself is
-  unmaintained, the browser test guards it.
-- Tested with PowerDNS 4.9, 5.0 and 5.1 (API enabled) on PHP 8.4, 8.5 and 8.6; see Tested versions.
-- `docker compose up -d --build` starts PowerDNS and nsedit; see the README.
-- No Tuxis branding; the GPLv2 license and the credits to the original authors are kept.
-
 ## Step 16: dark mode
 
 - Light and dark theme. By default nsedit follows the system or browser setting (`prefers-color-scheme`) and
@@ -333,3 +353,18 @@ without the fix (except the SOA serial of reverse zones, see below).
 - `js/theme.js` is loaded in `<head>` and sets `<html data-theme>` before the page is drawn, so there is no
   white flash. `css/dark.css` holds the dark colours for jQuery UI, jTable and nsedit's own styles; the light
   theme is unchanged. Covered by the browser test.
+
+## Where it is now
+
+- Runs on PHP 8.4, 8.5 and 8.6 with PowerDNS Authoritative 4.9, 5.0 and 5.1: the smoke test and the
+  browser test pass on every combination, without any PHP warning or deprecation in the log.
+- Every change goes through a pull request with CI and a ticked test plan; `master` and release tags are
+  protected; releases with a checked tarball from v2.0.0 on.
+- Runs on FreeBSD in jails, OpenBSD in a chroot and NetBSD with pkgsrc; reference setups in `contrib/`.
+- Reverse DNS helpers (reverse zones for a prefix, records moved when a zone is split off, PTRs by IP
+  address) and a light and dark theme.
+- jQuery 3.7.1, jQuery UI 1.14.2 and jTable 2.6.0 without known vulnerabilities; jTable itself is
+  unmaintained, the browser test guards it.
+- Tested with PowerDNS 4.9, 5.0 and 5.1 (API enabled) on PHP 8.4, 8.5 and 8.6; see Tested versions.
+- `docker compose up -d --build` starts PowerDNS and nsedit; see the README.
+- No Tuxis branding; the GPLv2 license and the credits to the original authors are kept.
