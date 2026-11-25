@@ -292,6 +292,16 @@ without the fix (except the SOA serial of reverse zones, see below).
   At most 256 zones per request. A dialog lists what was created, skipped or failed.
 - New action `zones.php?action=createreverse`; covered by the smoke test and the browser test.
 
+## Step 14: move records from the parent zone
+
+- New checkbox **Move records from the parent zone** (on by default) when adding a zone and in *Add reverse
+  zones*. Records that fall inside the new zone are moved out of the most specific zone above it, for
+  example the PTRs of a customer's /56 when that /56 is split off a /32. Without this they would become
+  invisible, because PowerDNS answers from the new, still empty zone. NS and DS records at the apex of the
+  new zone stay in the parent (they are the delegation). Only done when the user may change the parent
+  zone; the records are first added to the new zone and only then removed from the parent. The result
+  dialog of *Add reverse zones* lists how many records were moved.
+
 ## Where it is now
 
 - Runs on PHP 8.4, 8.5 and 8.6 with PowerDNS Authoritative 4.9, 5.0 and 5.1: the smoke test and the

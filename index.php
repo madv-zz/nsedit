@@ -824,6 +824,15 @@ $(document).ready(function () {
                 },
                 inputClass: 'nameserver nameserver1'
             },
+            moverecords: {
+                title: 'Move records from the parent zone',
+                type: 'checkbox',
+                values: {'0': 'No', '1': 'Yes'},
+                defaultValue: 1,
+                list: false,
+                edit: false,
+                inputClass: 'moverecords'
+            },
             serial: {
                 title: 'Serial',
                 width: '10%',
@@ -989,12 +998,21 @@ $(document).ready(function () {
                     return $('<div class="nameservers">' + ns_form + '</div>');
                 },
                 inputClass: 'nameserver'
+            },
+            moverecords: {
+                title: 'Move records from the parent zone',
+                type: 'checkbox',
+                values: {'0': 'No', '1': 'Yes'},
+                defaultValue: 1,
+                list: false,
+                edit: false,
+                inputClass: 'moverecords'
             }
         },
         recordAdded: function(event, data) {
             var r = data.record;
             var $out = $('#reverseresult').empty();
-            [['Created', r.created], ['Already present, left alone', r.skipped], ['Failed', r.failed]].forEach(function(part) {
+            [['Created', r.created], ['Already present, left alone', r.skipped], ['Records moved from the parent zone', r.moved], ['Failed', r.failed]].forEach(function(part) {
                 if (!part[1] || !part[1].length) return;
                 $out.append($('<p>').append($('<b>').text(part[0] + ' (' + part[1].length + ')')));
                 var $ul = $('<ul>');

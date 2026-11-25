@@ -7,6 +7,7 @@ Reads NSEDIT_ADMIN_USER / NSEDIT_ADMIN_PASSWORD from .env in the repository root
 never prints them. KEEP=1 leaves the test zones in place, e.g. to query them with dig.
 """
 import http.cookiejar
+import ipaddress
 import json
 import os
 import re
@@ -31,6 +32,10 @@ SLAVE = 'slave.example.'
 # reverse zones made by 'Add reverse zones' for 198.51.100.0/23 and 2001:db8:100::/47
 REVP = ['100.51.198.in-addr.arpa.', '101.51.198.in-addr.arpa.',
         '0.0.1.0.8.b.d.0.1.0.0.2.ip6.arpa.', '1.0.1.0.8.b.d.0.1.0.0.2.ip6.arpa.']
+# splitting a /56 off a /48 moves the records under the /56 into the new zone
+P48 = '0.0.2.0.8.b.d.0.1.0.0.2.ip6.arpa.'
+P56 = '1.0.0.0.2.0.8.b.d.0.1.0.0.2.ip6.arpa.'
+SUB = 'sub.smoketest.example.'
 CUST = 'customer@example.com'
 
 
@@ -89,7 +94,7 @@ a = Client()
 expect('login admin', a.login(env['NSEDIT_ADMIN_USER'], env['NSEDIT_ADMIN_PASSWORD']))
 
 # clean up a previous run
-for z in [Z, CLONE, REV4, REV6, SLAVE] + REVP:
+for z in [Z, CLONE, REV4, REV6, SLAVE, P56, P48, SUB] + REVP:
     a.j('zones.php', 'delete', {'id': z})
 for u in a.j('users.php', 'list').get('Records', []):
     if u['emailaddress'] == CUST:
@@ -155,6 +160,28 @@ expect('... nothing created, two skipped', rz.get('Record', {}).get('created') =
 for bad in ('198.51.100.5/24', '198.51.100.0/25', '10.0.0.0/7 nonsense', '2001:db8::/129'):
     check('reverse zones refused: ' + bad, a.j('zones.php', 'createreverse', {'prefixes': bad, 'kind': 'Master', 'nameserver[]': NS2}), 'ERROR')
 
+# move records from the parent zone when a zone is split off
+def ptr_label(ip, zone):
+    return ipaddress.ip_address(ip).reverse_pointer[:-len(zone)]
+
+
+check('/48 reverse zone', a.j('zones.php', 'createreverse', {'prefixes': '2001:db8:200::/48', 'kind': 'Master', 'nameserver[]': NS2}))
+for ip, host in (('2001:db8:200:100::1', 'in56.example.'), ('2001:db8:200:200::1', 'out56.example.')):
+    check('PTR in the /48 for ' + ip, a.j('zones.php', 'createrecord', {'name': ptr_label(ip, P48), 'type': 'PTR', 'content': host, 'ttl': '300', 'disabled': '0'}, zoneid=P48))
+check('delegation NS for the /56 in the /48', a.j('zones.php', 'createrecord', {'name': P56[:-len(P48) - 1], 'type': 'NS', 'content': 'ns.customer.example.', 'ttl': '300', 'disabled': '0'}, zoneid=P48))
+rz = check('split off a /56, moving its records', a.j('zones.php', 'createreverse', {
+    'prefixes': '2001:db8:200:100::/56', 'kind': 'Master', 'nameserver[]': NS2, 'moverecords': '1'}))
+expect('... reported as 1 record moved from the /48', rz.get('Record', {}).get('moved') == [P56 + ': 1 from ' + P48], rz)
+expect('... the PTR is now in the /56', [r[2] for r in records(a, P56, 'PTR')] == ['in56.example.'])
+p48 = records(a, P48)
+expect('... and no longer in the /48; the other PTR and the delegation NS stay',
+       [r[2] for r in p48 if r[1] == 'PTR'] == ['out56.example.'] and (P56, 'NS', 'ns.customer.example.') in p48, p48)
+check('A record under a future subzone', a.j('zones.php', 'createrecord', {'name': 'host.sub', 'type': 'A', 'content': '192.0.2.30', 'ttl': '300', 'disabled': '0'}, zoneid=Z))
+check('create subzone with "move records"', a.j('zones.php', 'create', {'name': SUB, 'kind': 'Master', 'account': 'admin', 'template': 'None',
+                                                                         'nameserver[]': NS2, 'moverecords': '1'}))
+expect('... the A record moved into the subzone', ('host.' + SUB, 'A', '192.0.2.30') in records(a, SUB)
+       and not [r for r in records(a, Z) if r[0] == 'host.' + SUB])
+
 # users
 check('create user', a.j('users.php', 'create', {'emailaddress': CUST, 'password': 'Customer-test-123', 'isadmin': '0'}))
 check('list users', a.j('users.php', 'list'))
@@ -213,7 +240,7 @@ check('filter logs', a.j('logs.php', 'list', {'user': 'admin', 'entry': 'zone'})
 
 # clean up
 if not os.environ.get('KEEP'):
-    for z in [CLONE, SLAVE, REV4, REV6, Z] + REVP:
+    for z in [CLONE, SLAVE, REV4, REV6, SUB, Z, P56, P48] + REVP:
         check('delete zone ' + z, a.j('zones.php', 'delete', {'id': z}))
     check('delete user', a.j('users.php', 'delete', {'id': uid}))
 a.req('index.php', get={'logout': 1})
