@@ -9,7 +9,7 @@ Runs in the Playwright image, for example:
 
 Reads NSEDIT_ADMIN_USER / NSEDIT_ADMIN_PASSWORD from .env (never prints them). Fails on every JavaScript
 error, failed request or console error/warning, so a library update that breaks the UI is caught.
-Creates and removes the zone uitest.example. and the user uitest@example.com.
+Creates and removes the zones uitest.example. and 113.0.203.in-addr.arpa. and the user uitest@example.com.
 """
 import os
 import re
@@ -19,6 +19,7 @@ from playwright.sync_api import expect, sync_playwright
 
 BASE = sys.argv[1] if len(sys.argv) > 1 else 'http://127.0.0.1:8080'
 ZONE = 'uitest.example.'
+REVZONE = '113.0.203.in-addr.arpa.'  # made through 'Add reverse zones' for 203.0.113.0/24
 USER = 'uitest@example.com'
 EXPECTED = {'jQuery.fn.jquery': '3.7.1', 'jQuery.ui.version': '1.14.2'}
 
@@ -88,15 +89,15 @@ def child_table(page):
 
 def cleanup(page):
     """Remove leftovers of an earlier run through the API of nsedit itself (same session and csrf token)."""
-    page.evaluate("""async ([zone, user]) => {
+    page.evaluate("""async ([zones, user]) => {
         const post = (url, data) => fetch(url, {method: 'POST', body: new URLSearchParams(data),
             headers: {'X-CSRF-Token': window.csrf_token}}).then(r => r.json()).catch(() => null);
-        await post('zones.php?action=delete', {id: zone});
+        for (const z of zones) await post('zones.php?action=delete', {id: z});
         const users = await post('users.php?action=list', {});
         for (const u of (users && users.Records) || []) {
             if (u.emailaddress === user) await post('users.php?action=delete', {id: u.id});
         }
-    }""", [ZONE, USER])
+    }""", [[ZONE, REVZONE], USER])
 
 
 def zones(page):
@@ -169,6 +170,24 @@ def zones(page):
     clone.get_by_role('button', name='Cancel').click()
     expect(clone).to_be_hidden()
     step('clone dialog opens and closes')
+
+    page.locator('#MasterZones .jtable-toolbar-item', has_text='Add reverse zones').click()
+    form = page.locator('.ui-dialog:visible #jtable-create-form')
+    form.locator('#Edit-prefixes').fill('203.0.113.0/24')
+    expect(form.locator('input[name="nameserver[]"]').first).to_be_visible()
+    dialog_button(page, 'AddRecordDialogSaveButton')
+    result = page.locator('.ui-dialog', has=page.locator('#reverseresult'))
+    expect(result).to_be_visible()
+    expect(result).to_contain_text('Created (1)')
+    expect(result).to_contain_text(REVZONE)
+    result.locator('.ui-dialog-buttonpane button', has_text='Close').click()
+    expect(result).to_be_hidden()
+    search_zones(page, '113.0.203')
+    expect(master_row(page, REVZONE)).to_have_count(1)
+    master_row(page, REVZONE).locator('.jtable-delete-command-button').click()
+    dialog_button(page, 'DeleteDialogButton')
+    expect(master_row(page, REVZONE)).to_have_count(0)
+    step('add reverse zones for a prefix, then delete the zone')
 
 
 def users(page):
