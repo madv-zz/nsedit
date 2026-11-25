@@ -102,7 +102,7 @@ PowerDNS 5 that code had these problems:
   push or deletion, also not for admins), secret scanning with push protection, Dependabot alerts and
   security updates, private vulnerability reporting, issues enabled.
 
-## Step 7: current jQuery and jQuery UI, browser test (closes #2)
+## Step 6: current jQuery and jQuery UI, browser test (closes #2)
 
 - jQuery 1.10.2 → **3.7.1**, jQuery UI 1.11.5-pre (unbuilt source checkout of 2014) → **1.14.2**, jTable
   2.4.0 → **2.6.0**; taken from npm with checked checksums, bundled in `vendor/` with `vendor/versions.json`.
@@ -118,6 +118,33 @@ PowerDNS 5 that code had these problems:
 - `tests/ui.py`: browser test with Playwright/Chromium in CI on PHP 8.4, 8.5 and 8.6: login, zones, records
   (add, edit, delete, search), export download, clone dialog, users, logs, logout. Fails on any JavaScript
   error, console warning, failed request or error answer of nsedit.
+
+## Step 7: fixes from the code review
+
+A review of the work above found these problems; each now has a test in `tests/smoke.py` that fails
+without the fix (except the SOA serial of reverse zones, see below).
+
+- **Set PTR Record** (`zones.php`):
+  - a customer whose reverse zone belongs to the admin (the usual case) got "You don't have access to
+    this zone" after the A/AAAA record was already saved; nsedit now only uses reverse zones the user may
+    change and otherwise just skips the PTR (logged);
+  - a failing PTR (for example a CNAME at that name) was reported as a failed save although the forward
+    record was saved; the PTR is now planned before saving and a failure afterwards is logged;
+  - an invalid address gives an error before anything is saved;
+  - changing the address of a record with "Set PTR" left the old PTR; it is now removed when it still
+    points to the record's name;
+  - the reverse zone gets SOA-EDIT-API like the forward zone, so its serial goes up and secondaries
+    transfer the PTR (only matters for reverse zones created outside nsedit; not covered by the test).
+- **Clone**: the new zone keeps its own SOA instead of the source's (whose SOA named the source zone).
+- **Password change**: redirect after the change (POST-redirect-GET); with `NSEDIT_SECRET` the page
+  otherwise kept a CSRF token of the old password and every action failed until a reload.
+- **Passwords starting with `$6$`** were stored unhashed (the user could not log in any more, and anyone
+  could set a crypt hash as password); passwords from forms are now always hashed.
+- **WeFact login**: TLS certificate verification turned on (it was off, so the API key and the login
+  answer could be intercepted).
+- **`.dockerignore`**: a local `includes/config.inc.php` (API key, passwords) and `etc/` (user database)
+  no longer end up in an image layer.
+- Smoke test checks that the export really contains the zone with its SOA (it only checked `Result`).
 
 ## Where it is now
 

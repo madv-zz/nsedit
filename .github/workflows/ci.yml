@@ -146,8 +146,10 @@ jobs:
       - name: DNS answers from PowerDNS
         run: |
           KEEP=1 python3 -I tests/smoke.py >/dev/null
-          test "$(dig +short @127.0.0.1 -p 1053 mail.smoketest.example A)" = "192.0.2.11"
-          test "$(dig +short @127.0.0.1 -p 1053 -x 192.0.2.11)" = "mail.smoketest.example."
+          # the smoke test moves mail.smoketest.example from 192.0.2.11 to .12 with "Set PTR"
+          test "$(dig +short @127.0.0.1 -p 1053 mail.smoketest.example A)" = "192.0.2.12"
+          test "$(dig +short @127.0.0.1 -p 1053 -x 192.0.2.12)" = "mail.smoketest.example."
+          test -z "$(dig +short @127.0.0.1 -p 1053 -x 192.0.2.11)"
       - name: internal files are not served
         run: |
           for path in includes/config.inc.php includes/scheme.sql templates.d/template.json.example rotate-logs.php; do

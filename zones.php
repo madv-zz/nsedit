@@ -183,46 +183,104 @@ function reverse_name($ip) {
     return implode('.', array_reverse(str_split(bin2hex($packed)))) . '.ip6.arpa.';
 }
 
-# Create/replace the PTR record for an A/AAAA record in the most specific
-# reverse zone that exists and that the user has access to. PowerDNS used to
-# do this with 'set-ptr', which was removed from its API in version 4.4.
-function set_ptr_record($api, $type, $ip, $hostname, $ttl, $disabled) {
-    if ($type != 'A' && $type != 'AAAA') {
-        return;
+# The most specific reverse zone for $revname that the current user may change, or false.
+# Zones of other users are skipped: for an ISP the reverse zones usually belong to the admin.
+function find_ptr_zone($api, $revname) {
+    $best = false;
+    foreach ($api->listzones() as $z) {
+        $zname = $z['name'] ?? '';
+        if (($z['kind'] ?? '') == 'Slave' || $zname == '') continue;
+        if (!string_ends_with($revname, '.'.$zname) && $revname !== $zname) continue;
+        if (($z['account'] ?? '') == '') {
+            $z['account'] = get_zone_account($zname, 'admin');
+        }
+        if (!check_account($z)) continue;
+        if ($best === false || strlen($zname) > strlen($best)) {
+            $best = $zname;
+        }
+    }
+    return $best;
+}
+
+# Work out where the PTR for an A/AAAA record goes, before anything is saved, so an
+# invalid address gives an error without changing the zone. Returns null when no PTR
+# is wanted, otherwise array(reverse name, reverse zone or false).
+function plan_ptr($api, $type, $ip) {
+    if (empty($_POST['setptr']) || ($type != 'A' && $type != 'AAAA')) {
+        return null;
     }
     $revname = reverse_name($ip);
     if ($revname === false) {
         jtable_respond(null, 'error', "Cannot create PTR: $ip is not an IP address");
     }
+    return array($revname, find_ptr_zone($api, $revname));
+}
 
-    $best = false;
-    foreach ($api->listzones() as $z) {
-        $zname = $z['name'] ?? '';
-        if (($z['kind'] ?? '') == 'Slave' || $zname == '') continue;
-        if (string_ends_with($revname, '.'.$zname) || $revname === $zname) {
-            if ($best === false || strlen($zname) > strlen($best)) {
-                $best = $zname;
-            }
-        }
-    }
-    if ($best === false) {
-        writelog("No reverse zone found for $revname, PTR not created");
+# Save a changed reverse zone; raises its SOA serial like the forward zone paths do.
+function save_reverse_zone($api, $revzone) {
+    global $defaults;
+    $revzone->setSoaEditApi($defaults['soa_edit_api']);
+    $api->savezone($revzone->export());
+}
+
+# Create/replace the PTR record planned by plan_ptr(). PowerDNS used to do this with
+# 'set-ptr', which was removed from its API in version 4.4. Runs after the forward
+# record was saved: a failure is logged, not reported as a failed save.
+function set_ptr_record($api, $plan, $hostname, $ttl, $disabled) {
+    if ($plan === null) {
         return;
     }
-
-    $revzone = load_zone_checked($api, $best);
-    $rrset = $revzone->getRRSet($revname, 'PTR');
-    if ($rrset !== FALSE) {
-        foreach ($rrset->records as $r) {
-            $rrset->deleteRecord($r->content);
-        }
-        $rrset->addRecord($hostname, $disabled);
-        $rrset->setTtl($ttl);
-    } else {
-        $revzone->addRecord($revname, 'PTR', $hostname, $disabled, $ttl);
+    list($revname, $revzonename) = $plan;
+    if ($revzonename === false) {
+        writelog("No reverse zone you can change for $revname, PTR not set");
+        return;
     }
-    $api->savezone($revzone->export());
-    writelog("Set PTR $revname -> $hostname");
+    try {
+        $revzone = load_zone_checked($api, $revzonename);
+        $rrset = $revzone->getRRSet($revname, 'PTR');
+        if ($rrset !== FALSE) {
+            foreach ($rrset->records as $r) {
+                $rrset->deleteRecord($r->content);
+            }
+            $rrset->addRecord($hostname, $disabled);
+            $rrset->setTtl($ttl);
+        } else {
+            $revzone->addRecord($revname, 'PTR', $hostname, $disabled, $ttl);
+        }
+        save_reverse_zone($api, $revzone);
+        writelog("Set PTR $revname -> $hostname");
+    } catch (Exception $e) {
+        writelog("Could not set PTR $revname -> $hostname: ".$e->getMessage());
+    }
+}
+
+# Remove the PTR of an old A/AAAA address if it still points to $hostname.
+function remove_old_ptr_record($api, $ip, $hostname) {
+    $revname = reverse_name($ip);
+    $revzonename = $revname === false ? false : find_ptr_zone($api, $revname);
+    if ($revzonename === false) {
+        return;
+    }
+    try {
+        $revzone = load_zone_checked($api, $revzonename);
+        $rrset = $revzone->getRRSet($revname, 'PTR');
+        if ($rrset === FALSE) {
+            return;
+        }
+        foreach ($rrset->records as $r) {
+            if ($r->content === $hostname) {
+                $rrset->deleteRecord($hostname);
+                if (count($rrset->records) == 0) {
+                    $rrset->delete();
+                }
+                save_reverse_zone($api, $revzone);
+                writelog("Removed old PTR $revname -> $hostname");
+                return;
+            }
+        }
+    } catch (Exception $e) {
+        writelog("Could not remove old PTR $revname -> $hostname: ".$e->getMessage());
+    }
 }
 
 function post_ttl() {
@@ -485,11 +543,10 @@ case "createrecord":
         $content = quote_content($content);
     }
 
+    $ptrplan = plan_ptr($api, $type, $content);
     $record = $zone->addRecord($name, $type, $content, (bool) ($_POST['disabled'] ?? false), post_ttl(), (bool) ($_POST['setptr'] ?? false));
     $api->savezone($zone->export());
-    if (!empty($_POST['setptr'])) {
-        set_ptr_record($api, $type, $content, $name, post_ttl(), (bool) ($_POST['disabled'] ?? false));
-    }
+    set_ptr_record($api, $ptrplan, $name, post_ttl(), (bool) ($_POST['disabled'] ?? false));
 
     writelog("Created record: ".$record['id']);
     jtable_respond($record, 'single');
@@ -521,12 +578,15 @@ case "editrecord":
         $content = quote_content($content);
     }
 
+    $ptrplan = plan_ptr($api, $type, $content);
     $zone->addRecord($name, $type, $content, (bool) ($_POST['disabled'] ?? false), post_ttl(), (bool) ($_POST['setptr'] ?? false));
 
     $api->savezone($zone->export());
-    if (!empty($_POST['setptr'])) {
-        set_ptr_record($api, $type, $content, $name, post_ttl(), (bool) ($_POST['disabled'] ?? false));
+    if ($ptrplan !== null && in_array($old_record['type'], array('A', 'AAAA'), true)
+        && ($old_record['content'] !== $content || $old_record['name'] !== $name)) {
+        remove_old_ptr_record($api, $old_record['content'], $old_record['name']);
     }
+    set_ptr_record($api, $ptrplan, $name, post_ttl(), (bool) ($_POST['disabled'] ?? false));
 
     $record = $zone->getRecord($name, $type, $content);
     writelog("Updated record ".$_POST['id']." to ".$record['id']);
@@ -578,10 +638,13 @@ case "clone":
 
     $srczone = load_zone_checked($api, $src);
     $srcname = $srczone->name;
-    # keep the rrsets of the source, renamed to the new zone
-    $srcrrsets = $srczone->rrsets;
-    foreach ($srcrrsets as $rrset) {
+    # keep the rrsets of the source, renamed to the new zone; not its SOA: the new
+    # zone keeps the SOA PowerDNS made for it (the source SOA names the source zone)
+    $srcrrsets = array();
+    foreach ($srczone->rrsets as $rrset) {
+        if ($rrset->type == 'SOA') continue;
         $rrset->setName(preg_replace('/'.preg_quote($srcname, '/').'$/', $name, $rrset->name));
+        $srcrrsets[] = $rrset;
     }
     $srczone->rrsets = array();
 

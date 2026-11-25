@@ -148,10 +148,9 @@ function add_user($username, $isadmin = FALSE, $password = '') {
     if (!$password) {
         $password = bin2hex(openssl_random_pseudo_bytes(32));
     }
-    if (!string_starts_with($password, '$6$')) {
-        $salt = bin2hex(openssl_random_pseudo_bytes(16));
-        $password = crypt($password, '$6$'.$salt);
-    }
+    # Always hash: a password that happens to start with $6$ is still a password, not a hash
+    $salt = bin2hex(openssl_random_pseudo_bytes(16));
+    $password = crypt($password, '$6$'.$salt);
 
     $db = get_db();
     $q = $db->prepare('INSERT INTO users (emailaddress, password, isadmin) VALUES (?, ?, ?)');
@@ -169,7 +168,8 @@ function add_user($username, $isadmin = FALSE, $password = '') {
 }
 
 function update_user($id, $isadmin, $password) {
-    if ($password && !string_starts_with($password, '$6$')) {
+    if ($password) {
+        # Always hash: a password that happens to start with $6$ is still a password, not a hash
         $salt = bin2hex(openssl_random_pseudo_bytes(16));
         $password = crypt($password, '$6$'.$salt);
     }

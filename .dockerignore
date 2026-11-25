@@ -9,3 +9,6 @@ pdns
 phpstan*.neon
 .trivyignore.yaml
 .gitleaksignore
+includes/config.inc.php
+etc
+nsedit.sublime*
