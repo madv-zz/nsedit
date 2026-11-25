@@ -31,6 +31,11 @@ if (is_logged_in() and isset($_POST['formname']) and $_POST['formname'] === "cha
     } elseif (get_sess_user() == ($_POST['username'] ?? '')) {
         if (!update_user(get_sess_userid(), is_adminuser(), $_POST['password'] ?? '')) {
             $errormsg = "Unable to update password!\n";
+        } else {
+            # POST-redirect-GET: with a $secret the csrf token depends on the password hash,
+            # so the page has to be rendered again to get the new token.
+            header('Location: index.php?pwchanged=1');
+            exit(0);
         }
     } else {
         $errormsg = "You can only update your own password!";
@@ -175,6 +180,8 @@ if ($blocklogin === TRUE) {
     </div>
     <?php if (isset($errormsg)) {
         echo '<span style="color: red">' . $errormsg . '</span><br />';
+    } elseif (isset($_GET['pwchanged'])) {
+        echo '<span style="color: green" id="pwchanged">Your password has been changed.</span><br />';
     }
     ?>
     <div id="zones">

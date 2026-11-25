@@ -106,6 +106,19 @@ check('TXT record (quoting)', a.j('zones.php', 'createrecord', {'name': '', 'typ
 check('MX record', a.j('zones.php', 'createrecord', {'name': '', 'type': 'MX', 'content': '10 mail.smoketest.example.', 'ttl': '3600', 'disabled': '0'}, zoneid=Z))
 check('invalid TTL refused', a.j('zones.php', 'createrecord', {'name': 'x', 'type': 'A', 'content': '192.0.2.1', 'ttl': 'abc'}, zoneid=Z), 'ERROR')
 expect('IPv4 PTR created', records(a, REV4, 'PTR') == [('11.2.0.192.in-addr.arpa.', 'PTR', 'mail.smoketest.example.')], records(a, REV4, 'PTR'))
+soa_before = [r[2] for r in records(a, REV4, 'SOA')]
+bad = a.j('zones.php', 'createrecord', {'name': 'bad', 'type': 'A', 'content': 'not-an-ip', 'ttl': '300', 'disabled': '0', 'setptr': '1'}, zoneid=Z)
+check('PTR for an invalid address refused', bad, 'ERROR')
+expect('... and the record was not saved', not [r for r in records(a, Z) if r[0] == 'bad.' + Z])
+check('CNAME in the reverse zone', a.j('zones.php', 'createrecord', {'name': '13', 'type': 'CNAME', 'content': 'elsewhere.example.', 'ttl': '300', 'disabled': '0'}, zoneid=REV4))
+check('A record with PTR that PowerDNS refuses (CNAME there)', a.j('zones.php', 'createrecord', {'name': 'cn', 'type': 'A', 'content': '192.0.2.13', 'ttl': '300', 'disabled': '0', 'setptr': '1'}, zoneid=Z))
+expect('... the A record is saved anyway', ('cn.' + Z, 'A', '192.0.2.13') in records(a, Z))
+mail = next(x for x in a.j('zones.php', 'listrecords', zoneid=Z).get('Records', []) if x['name'] == 'mail.' + Z and x['type'] == 'A')
+check('change the address of a record with PTR', a.j('zones.php', 'editrecord', {'id': mail['id'], 'name': mail['name'], 'type': 'A', 'content': '192.0.2.12',
+                                                                              'ttl': '300', 'disabled': '0', 'setptr': '1'}, zoneid=Z))
+soa_after = [r[2] for r in records(a, REV4, 'SOA')]
+expect('reverse zone serial raised by PTR changes', soa_before != soa_after, soa_after)
+expect('... new PTR set, old PTR removed', records(a, REV4, 'PTR') == [('12.2.0.192.in-addr.arpa.', 'PTR', 'mail.smoketest.example.')], records(a, REV4, 'PTR'))
 expect('IPv6 PTR created', records(a, REV6, 'PTR') == [('1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.' + REV6, 'PTR', 'v6.smoketest.example.')], records(a, REV6, 'PTR'))
 expect('TXT is quoted', ('smoketest.example.', 'TXT', '"v=spf1 -all"') in records(a, Z))
 recs = check('list records (sorted)', a.j('zones.php', 'listrecords', zoneid=Z, jtSorting='type ASC'))
@@ -114,10 +127,13 @@ www = next(x for x in recs.get('Records', []) if x['name'].startswith('www.'))
 e = check('edit record', a.j('zones.php', 'editrecord', {'id': www['id'], 'name': www['name'], 'type': 'A', 'content': '192.0.2.20',
                                                           'ttl': '600', 'disabled': '1', 'setptr': '0'}, zoneid=Z))
 check('delete record', a.j('zones.php', 'deleterecord', {'id': e['Record']['id']}, zoneid=Z))
-check('export zone', a.j('zones.php', 'export', zoneid=Z))
+exported = check('export zone', a.j('zones.php', 'export', zoneid=Z))
+expect('... export contains the zone with its SOA', ' SOA ' in ((exported.get('Record') or {}).get('zone') or '').replace('\t', ' '))
 check('update zone', a.j('zones.php', 'update', {'id': Z, 'account': 'admin'}))
 check('clone zone', a.j('zones.php', 'clone', {'sourcename': Z, 'destname': CLONE.rstrip('.'), 'kind': 'Master'}))
 cr = [(n, t) for n, t, c in records(a, CLONE)]
+clone_soa = [r[2] for r in records(a, CLONE, 'SOA')]
+expect('clone keeps its own SOA (not the one of the source)', len(clone_soa) == 1 and 'smoketest' not in clone_soa[0], clone_soa)
 expect('clone has the records of the source', ('mail.' + CLONE, 'A') in cr and (CLONE, 'MX') in cr and cr.count((CLONE, 'SOA')) == 1, cr)
 check('zone list for forms', a.j('zones.php', 'formzonelist'))
 check('create slave zone', a.j('zones.php', 'create', {'name': SLAVE, 'kind': 'Slave', 'masters': '192.0.2.53, 192.0.2.54'}))
@@ -138,6 +154,9 @@ expect('login customer', k.login(CUST, 'Customer-test-456'))
 names = [z['name'] for z in k.j('zones.php', 'list').get('Records', [])]
 expect('customer only sees own zone', names == [CLONE], names)
 check('customer: records of own zone', k.j('zones.php', 'listrecords', zoneid=CLONE))
+check('customer: A record with PTR, reverse zone belongs to admin', k.j('zones.php', 'createrecord', {'name': 'cust', 'type': 'A', 'content': '192.0.2.77', 'ttl': '300', 'disabled': '0', 'setptr': '1'}, zoneid=CLONE))
+expect('... A record saved, no PTR in the admin\'s zone', ('cust.' + CLONE, 'A', '192.0.2.77') in records(k, CLONE)
+       and not [r for r in records(a, REV4, 'PTR') if r[0].startswith('77.')])
 check('customer: records of other zone refused', k.j('zones.php', 'listrecords', zoneid=Z), 'ERROR')
 check('customer: export of other zone refused', k.j('zones.php', 'export', zoneid=Z), 'ERROR')
 check('customer: edit other zone refused', k.j('zones.php', 'createrecord', {'name': 'x', 'type': 'A', 'content': '192.0.2.8'}, zoneid=Z), 'ERROR')
@@ -155,6 +174,10 @@ tok = re.search(r'name="csrf-token" value="([^"]+)"', k.req('index.php'))
 k.req('index.php', {'formname': 'changepwform', 'username': CUST, 'password': 'Customer-test-789',
                     'password2': 'Customer-test-789', 'csrf-token': tok.group(1) if tok else ''})
 expect('change password through form', Client().login(CUST, 'Customer-test-789'))
+check('same page works after the password change (new csrf token)', k.j('zones.php', 'createrecord', {'name': 'afterpw', 'type': 'A', 'content': '192.0.2.78', 'ttl': '300', 'disabled': '0'}, zoneid=CLONE))
+check('admin sets a password that starts with $6$', a.j('users.php', 'update', {'id': uid, 'isadmin': '0', 'password': '$6$Customer-test'}))
+expect('... and the user can log in with it', Client().login(CUST, '$6$Customer-test'))
+check('admin sets the password back', a.j('users.php', 'update', {'id': uid, 'isadmin': '0', 'password': 'Customer-test-789'}))
 
 # auto-login ("remember me", needs NSEDIT_SECRET)
 if env.get('NSEDIT_SECRET'):
