@@ -53,6 +53,7 @@ Features
 * Clone zones
 * Add all reverse zones for an IPv4/IPv6 prefix in one go (e.g. 192.0.2.0/22 gives four /24 zones)
 * When a zone is split off (e.g. a customer's /56 inside a /32), move its records out of the parent zone
+* Add a PTR record by typing the IP address and the hostname (no in-addr.arpa/ip6.arpa name needed)
 * Show the DNSsec details of a zone
 * Multiple user support
 * Allow logging of all actions in NSEdit, including exporting the log in JSON-format

@@ -591,6 +591,27 @@ $(document).ready(function () {
                         sorting: true,
                         pageSize: 20,
                         openChildAsAccordion: true,
+                        formCreated: function(event, data) {
+                            // tooltip on the Label field: what may be typed there
+                            var tip = 'The name relative to the zone (e.g. www), empty for the zone itself, '
+                                + 'or a full name ending with a dot.';
+                            var v4 = zone.name.match(/^([0-9.]+)\.in-addr\.arpa\.$/);
+                            if (v4) {
+                                var octets = v4[1].split('.').reverse();
+                                while (octets.length < 4) octets.push('10');
+                                tip = 'For a PTR record: the IP address (e.g. ' + octets.join('.') + '), '
+                                    + 'the last part of the reverse name (e.g. ' + octets[3] + ') '
+                                    + 'or the full reverse name ending with .in-addr.arpa. '
+                                    + 'Content: the hostname, the final dot may be left out.';
+                            } else if (zone.name.match(/\.ip6\.arpa\.$/)) {
+                                tip = 'For a PTR record: the IPv6 address (e.g. 2001:db8::10) '
+                                    + 'or the full reverse name ending with .ip6.arpa. '
+                                    + 'Content: the hostname, the final dot may be left out.';
+                            }
+                            var $name = data.form.find('#Edit-name');
+                            $name.attr('title', tip);
+                            $name.closest('.jtable-input-field-container').find('.jtable-input-label').attr('title', tip);
+                        },
                         actions: {
                             listAction: 'zones.php?action=listrecords&zoneid=' + zone.id,
                             createAction: 'zones.php?action=createrecord&zoneid=' + zone.id,

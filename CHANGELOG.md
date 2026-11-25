@@ -302,6 +302,16 @@ without the fix (except the SOA serial of reverse zones, see below).
   zone; the records are first added to the new zone and only then removed from the parent. The result
   dialog of *Add reverse zones* lists how many records were moved.
 
+## Step 15: PTR records by IP address
+
+- A PTR record can be added or changed in a reverse zone by typing the IP address as name and the
+  hostname as content, e.g. `185.69.204.123` and `mail.example.nl`, instead of `123.204.69.185.in-addr.arpa.`
+  and `mail.example.nl.`. nsedit turns the address (IPv4 or IPv6) into its reverse name, refuses an
+  address outside the zone, and adds the final dot to the hostname. Relative names (`123`) and full
+  reverse names keep working as before.
+- Tooltip on the **Label** field of the record form: in a reverse zone it names an address of that zone
+  as example (e.g. `203.0.113.10`), in a forward zone it explains relative and absolute names.
+
 ## Where it is now
 
 - Runs on PHP 8.4, 8.5 and 8.6 with PowerDNS Authoritative 4.9, 5.0 and 5.1: the smoke test and the

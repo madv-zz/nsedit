@@ -127,6 +127,14 @@ def zones(page):
     expect(row).to_have_count(1)
     step('add record')
 
+    expect(page.locator('.ui-dialog:visible')).to_have_count(0)  # the add dialog fades out
+    child_table(page).locator('.jtable-toolbar-item-add-record').click()
+    form = page.locator('.ui-dialog:visible #jtable-create-form')
+    expect(form.locator('#Edit-name')).to_have_attribute('title', re.compile('relative to the zone'))
+    page.locator('.ui-dialog:visible').get_by_role('button', name='Cancel').click()
+    expect(page.locator('.ui-dialog:visible')).to_have_count(0)
+    step('tooltip on the Label field of a forward zone')
+
     row.locator('.jtable-edit-command-button').click()
     form = page.locator('.ui-dialog:visible #jtable-edit-form')
     form.locator('#Edit-content').fill('192.0.2.51')
@@ -192,6 +200,35 @@ def zones(page):
     step('add reverse zones for a prefix, then delete the zone')
 
 
+def reverse_ptr(page):
+    """Reverse zone: the Label tooltip names an address of the zone; a PTR can be added by IP address."""
+    page.click('#zoneadmin')
+    page.click('#MasterZones .jtable-toolbar-item-add-record')
+    form = page.locator('.ui-dialog:visible #jtable-create-form')
+    form.locator('#Edit-name').fill(REVZONE)
+    dialog_button(page, 'AddRecordDialogSaveButton')
+    expect(page.locator('.ui-dialog:visible')).to_have_count(0)
+    search_zones(page, '113.0.203')
+    master_row(page, REVZONE).locator('td.domain').click()
+    expect(child_table(page).locator('.jtable-title-text')).to_contain_text('Records in ' + REVZONE)
+    child_table(page).locator('.jtable-toolbar-item-add-record').click()
+    form = page.locator('.ui-dialog:visible #jtable-create-form')
+    expect(form.locator('#Edit-name')).to_have_attribute('title', re.compile(r'IP address \(e\.g\. 203\.0\.113\.10\)'))
+    step('tooltip on the Label field of a reverse zone')
+
+    form.locator('#Edit-name').fill('203.0.113.25')
+    form.locator('#Edit-type').select_option('PTR')
+    form.locator('#Edit-content').fill('host25.example')
+    dialog_button(page, 'AddRecordDialogSaveButton')
+    expect(child_table(page).locator('tr.jtable-data-row', has_text='host25.example.')).to_have_count(1)
+    step('add PTR by IP address through the dialog')
+
+    search_zones(page, 'in-addr.arpa')  # reloads the zone list, which closes the open record table
+    master_row(page, REVZONE).locator('.jtable-delete-command-button').click()
+    dialog_button(page, 'DeleteDialogButton')
+    expect(master_row(page, REVZONE)).to_have_count(0)
+
+
 def users(page):
     page.click('#useradmin')
     expect(page.locator('#Users td', has_text=env['NSEDIT_ADMIN_USER'])).to_have_count(1)
@@ -253,6 +290,7 @@ def main():
 
         try:
             zones(page)
+            reverse_ptr(page)
             users(page)
             logs(page)
             delete_zone(page)
