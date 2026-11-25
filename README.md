@@ -57,6 +57,7 @@ Features
 * Show the DNSsec details of a zone
 * Multiple user support
 * Allow logging of all actions in NSEdit, including exporting the log in JSON-format
+* Light and dark theme: follows the system setting, or chosen by hand with the Theme button (per browser)
 * [experimental] nsedit API, to create zones from another system
 
 User support

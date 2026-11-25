@@ -53,6 +53,8 @@ if (is_logged_in() and isset($_POST['formname']) and $_POST['formname'] === "cha
     <?php if ($menutype === 'horizontal') { ?>
     <link href="css/horizontal-menu.css" rel="stylesheet" type="text/css"/>
     <?php } ?>
+    <link href="css/dark.css" rel="stylesheet" type="text/css"/>
+    <script src="js/theme.js" type="text/javascript"></script>
     <script src="vendor/jquery/jquery.min.js" type="text/javascript"></script>
     <script src="vendor/jquery-ui/jquery-ui.min.js" type="text/javascript"></script>
     <script src="vendor/jtable/jquery.jtable.min.js" type="text/javascript"></script>
@@ -64,6 +66,7 @@ if (is_logged_in() and isset($_POST['formname']) and $_POST['formname'] === "cha
 if (!is_logged_in()) {
 ?>
 <body onload="document.getElementById('username').focus()">
+<button type="button" id="themetoggle" class="theme-toggle">Theme: auto</button>
 <div class="loginblock">
     <div class="logo">
         <img src="<?php echo $logo ?>" alt="Logo"/>
@@ -175,6 +178,7 @@ if ($blocklogin === TRUE) {
                 <li><a href="#" id="logadmin">Logs</a></li>
             <?php } ?>
             <li><a href="#" id="aboutme">About me</a></li>
+            <li><a href="#" id="themetoggle">Theme: auto</a></li>
             <li><a href="index.php?logout=1">Logout</a></li>
         </ul>
     </div>
