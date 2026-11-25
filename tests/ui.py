@@ -203,6 +203,7 @@ def reverse_ptr(page):
     expect(child_table(page).locator('tr.jtable-data-row', has_text='host25.example.')).to_have_count(1)
     step('add PTR by IP address through the dialog')
 
+    search_zones(page, 'in-addr.arpa')  # reloads the zone list, which closes the open record table
     master_row(page, REVZONE).locator('.jtable-delete-command-button').click()
     dialog_button(page, 'DeleteDialogButton')
     expect(master_row(page, REVZONE)).to_have_count(0)
