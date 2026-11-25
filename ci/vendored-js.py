@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Check the JavaScript libraries that are shipped in this repository (and loaded by index.php)
-against the OSV database. Trivy does not see them, because they are plain files without a lock file.
+"""Check the JavaScript libraries that are shipped in vendor/ (and loaded by index.php) against the
+OSV database. Trivy does not see them, because they are plain files without a lock file. The versions
+come from vendor/versions.json.
 
 Known findings can be accepted temporarily in .osv-ignore, one per line:
     <OSV/GHSA id> <expires YYYY-MM-DD> <reason>
@@ -9,27 +10,16 @@ An expired entry no longer counts, so the check fails again after that date.
 import datetime
 import json
 import pathlib
-import re
 import sys
 import urllib.request
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 
-def version_from(path, pattern):
-    match = re.search(pattern, (ROOT / path).read_text(encoding="utf-8", errors="replace"))
-    if not match:
-        sys.exit(f"cannot find the version in {path}")
-    return match.group(1)
-
-
-# npm package name -> (file that holds the version, regular expression for the version)
-LIBRARIES = {
-    "jquery": ("jquery-ui/external/jquery/jquery.js", r"jQuery JavaScript Library v(\S+)"),
-    # unbuilt source checkout of jQuery UI (the files say @VERSION); version from its old package.json
-    "jquery-ui": ("jquery-ui/VERSION", r"^(\S+)"),
-    "jtable": ("jtable/lib/jquery.jtable.js", r"jTable (\d+\.\d+\.\d+)"),
-}
+def libraries():
+    """npm package -> version, from vendor/versions.json (kept up to date when a library is replaced)."""
+    manifest = json.loads((ROOT / "vendor" / "versions.json").read_text(encoding="utf-8"))
+    return {name: info["version"] for name, info in manifest.items() if not name.startswith("_")}
 
 
 def load_ignores():
@@ -58,8 +48,7 @@ def query(name, version):
 
 def main():
     ignores, bad = load_ignores(), 0
-    for name, (path, pattern) in LIBRARIES.items():
-        version = version_from(path, pattern)
+    for name, version in libraries().items():
         vulns = query(name, version)
         print(f"-- {name} {version}: {len(vulns)} known vulnerabilities")
         for vuln in vulns:

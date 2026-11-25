@@ -102,12 +102,30 @@ PowerDNS 5 that code had these problems:
   push or deletion, also not for admins), secret scanning with push protection, Dependabot alerts and
   security updates, private vulnerability reporting, issues enabled.
 
+## Step 7: current jQuery and jQuery UI, browser test (closes #2)
+
+- jQuery 1.10.2 → **3.7.1**, jQuery UI 1.11.5-pre (unbuilt source checkout of 2014) → **1.14.2**, jTable
+  2.4.0 → **2.6.0**; taken from npm with checked checksums, bundled in `vendor/` with `vendor/versions.json`.
+  jQuery 3.7.1 instead of 4.0, because jTable uses `$.isFunction`, `$.type` and `$.trim`, which jQuery 4
+  removed. No known vulnerabilities left; `.osv-ignore` is empty. The old `jquery-ui/` (629 files: demos,
+  tests, 23 old jQuery copies) and `jtable/` are removed.
+- Regression found by the new browser test and fixed in `js/jtable-fixes.js`: a record that was created or
+  changed less than 5 seconds before was deleted on the server but stayed in the table (jTable waited for an
+  animation that does not finish with jQuery UI 1.14).
+- jTable: the `unload` handler is removed (Chrome blocks it, a console error on every page, also before this
+  change) and the theme no longer loads the Open Sans font from Google (a dead URL that also sent the
+  visitor's IP address to Google); only the blue metro theme is kept.
+- `tests/ui.py`: browser test with Playwright/Chromium in CI on PHP 8.4, 8.5 and 8.6: login, zones, records
+  (add, edit, delete, search), export download, clone dialog, users, logs, logout. Fails on any JavaScript
+  error, console warning, failed request or error answer of nsedit.
+
 ## Where it is now
 
 - Runs on PHP 8.4, 8.5 and 8.6 with PowerDNS Authoritative 5.0: the smoke test passes
   all checks on all three versions, without any PHP warning or deprecation in the log.
 - Every change goes through a pull request with CI; `master` is protected.
-- Open: the bundled jQuery and jQuery UI have known XSS vulnerabilities (issue #2).
+- jQuery 3.7.1, jQuery UI 1.14.2 and jTable 2.6.0 without known vulnerabilities; jTable itself is
+  unmaintained, the browser test guards it.
 - Requires PowerDNS 4.4 or newer with the API enabled.
 - `docker compose up -d --build` starts PowerDNS and nsedit; see the README.
 - No Tuxis branding; the GPLv2 license and the credits to the original authors are kept.

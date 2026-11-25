@@ -42,22 +42,16 @@ if (is_logged_in() and isset($_POST['formname']) and $_POST['formname'] === "cha
 <html>
 <head>
     <title>NSEdit!</title>
-    <link href="jquery-ui/themes/base/all.css" rel="stylesheet" type="text/css"/>
-    <link href="jtable/lib/themes/metro/blue/jtable.min.css" rel="stylesheet" type="text/css"/>
+    <link href="vendor/jquery-ui/jquery-ui.min.css" rel="stylesheet" type="text/css"/>
+    <link href="vendor/jtable/themes/metro/blue/jtable.min.css" rel="stylesheet" type="text/css"/>
     <link href="css/base.css" rel="stylesheet" type="text/css"/>
     <?php if ($menutype === 'horizontal') { ?>
     <link href="css/horizontal-menu.css" rel="stylesheet" type="text/css"/>
     <?php } ?>
-    <script src="jquery-ui/external/jquery/jquery.js" type="text/javascript"></script>
-    <script src="jquery-ui/ui/core.js" type="text/javascript"></script>
-    <script src="jquery-ui/ui/widget.js" type="text/javascript"></script>
-    <script src="jquery-ui/ui/mouse.js" type="text/javascript"></script>
-    <script src="jquery-ui/ui/draggable.js" type="text/javascript"></script>
-    <script src="jquery-ui/ui/position.js" type="text/javascript"></script>
-    <script src="jquery-ui/ui/button.js" type="text/javascript"></script>
-    <script src="jquery-ui/ui/resizable.js" type="text/javascript"></script>
-    <script src="jquery-ui/ui/dialog.js" type="text/javascript"></script>
-    <script src="jtable/lib/jquery.jtable.min.js" type="text/javascript"></script>
+    <script src="vendor/jquery/jquery.min.js" type="text/javascript"></script>
+    <script src="vendor/jquery-ui/jquery-ui.min.js" type="text/javascript"></script>
+    <script src="vendor/jtable/jquery.jtable.min.js" type="text/javascript"></script>
+    <script src="js/jtable-fixes.js" type="text/javascript"></script>
     <script src="js/addclear/addclear.js" type="text/javascript"></script>
 </head>
 
@@ -511,7 +505,7 @@ $(document).ready(function () {
             items: [
                 <?php if ($allowzoneadd === TRUE) { ?>
                 {
-                    icon: 'jtable/lib/themes/metro/add.png',
+                    icon: 'vendor/jtable/themes/metro/add.png',
                     text: 'Import a new zone',
                     click: function() {
                         $('#ImportZone').jtable('showCreateForm');
@@ -520,7 +514,7 @@ $(document).ready(function () {
                 <?php } ?>
                 <?php if (is_adminuser()) { ?>
                 {
-                    icon: 'jtable/lib/themes/metro/add.png',
+                    icon: 'vendor/jtable/themes/metro/add.png',
                     text: 'Clone a zone',
                     click: function() {
                         $('#CloneZone').jtable('showCreateForm');
