@@ -88,12 +88,6 @@ Installing
 
 Have fun ;)
 
-Other methods of installation (Unsupported)
-===========================================
-
-* Baji Zsolt created a Suse image: https://susestudio.com/a/vvnMqa/powerdns-with-nsedit
-* Yury Evtikhov created the original Docker file (replaced in this fork by the Docker Compose stack)
-
 Configuring PowerDNS
 ====================
 Minimal configuration of PowerDNS for supporting nsedit has to include 3 directives:

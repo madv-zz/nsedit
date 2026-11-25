@@ -75,6 +75,9 @@ PowerDNS 5 that code had these problems:
 
 - `screenshots/` removed (they showed the Tuxis logo) and the README section about them.
 - This changelog.
+- README: the section "Other methods of installation (Unsupported)" removed. The SUSE
+  Studio image no longer exists (SUSE Studio was shut down in 2017) and the original
+  Docker file by Yury Evtikhov was replaced in step 2.
 
 ## Where it is now
 
