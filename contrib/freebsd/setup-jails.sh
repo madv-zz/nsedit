@@ -1,6 +1,6 @@
 #!/bin/sh
 # Builds two FreeBSD jails in the test VM: "pdns" (PowerDNS + sqlite) and "nsedit" (nginx + php-fpm + nsedit).
-# Run as root in the VM:  ssh ... 'sh -s' < setup-jails.sh
+# Run as root in the VM:  ssh ... 'PHP=php85 sh -s' < setup-jails.sh   (PHP: php84 (default), php85 or php86)
 # Expects: /root/nsedit.tar (git archive of nsedit), /root/nsedit-admin-pw (admin password, mode 600).
 # Idempotent enough to run again after changing the nsedit code (it replaces /usr/local/www/nsedit).
 set -eu
@@ -53,6 +53,9 @@ sysrc -q jail_enable=YES jail_list="pdns nsedit" >/dev/null
 # dns/powerdns is missing from the FreeBSD 15 quarterly repository (2026-11-25); "latest" has 5.1.5.
 log "packages"
 env ASSUME_ALWAYS_YES=yes pkg -r $J/pdns install -q -r FreeBSD-latest powerdns sqlite3 >/dev/null
+# another PHP version from an earlier run would conflict: remove it first
+old=$(pkg -r $J/nsedit query -g '%n' 'php8*' 2>/dev/null | grep -v "^$PHP" || true)
+[ -z "$old" ] || env ASSUME_ALWAYS_YES=yes pkg -r $J/nsedit delete -q $old >/dev/null
 env ASSUME_ALWAYS_YES=yes pkg -r $J/nsedit install -q nginx $PHP $PHP-curl $PHP-sqlite3 $PHP-session $PHP-ctype $PHP-filter >/dev/null
 
 # --- PowerDNS jail -------------------------------------------------------------------------------------------
@@ -134,7 +137,7 @@ error_log = /var/log/php-nsedit.log
 expose_php = Off
 session.use_strict_mode = 1
 EOF
-touch $J/nsedit/var/log/php-nsedit.log && chroot $J/nsedit chown www /var/log/php-nsedit.log
+: > $J/nsedit/var/log/php-nsedit.log && chroot $J/nsedit chown www /var/log/php-nsedit.log
 
 cat > $J/nsedit/usr/local/etc/nginx/nginx.conf <<'EOF'
 worker_processes 1;
