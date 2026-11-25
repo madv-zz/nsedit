@@ -4,7 +4,8 @@
 #   create  download FreeBSD $FREEBSD (VM image with cloud-init), check its SHA512, make the disk and seed ISO
 #   start   boot the VM: ssh on 127.0.0.1:2222, nsedit on 127.0.0.1:8180
 #   deploy  copy this checkout (git archive HEAD) and the admin password from .env into the VM, run setup-jails.sh
-#   test    run tests/smoke.py and tests/ui.py against the jail
+#           (PHP=php85 or php86 in the environment picks the PHP version, default php84)
+#   test    the checks of the CI tests job against the jails: smoke test, browser test, PHP log, DNS, 403s
 # The seed ISO is made with xorriso in a Docker container; tests/ui.py runs in the Playwright image.
 set -eu
 DIR=${1:?usage: $0 <dir> create|start|stop|ssh|deploy|test}; CMD=${2:?}; shift 2
@@ -58,13 +59,11 @@ deploy)
     (cd "$REPO" && git archive --format=tar HEAD) | vssh 'cat > /root/nsedit.tar'
     grep '^NSEDIT_ADMIN_PASSWORD=' "$REPO/.env" | cut -d= -f2- | tr -d '\n' | vssh 'umask 077; cat > /root/nsedit-admin-pw'
     vssh 'test -f /usr/local/etc/pkg/repos/FreeBSD-latest.conf || { mkdir -p /usr/local/etc/pkg/repos; printf "FreeBSD-latest: { url: \"pkg+https://pkg.FreeBSD.org/\${ABI}/latest\", mirror_type: \"srv\", signature_type: \"fingerprints\", fingerprints: \"/usr/share/keys/pkg\", enabled: yes }\n" > /usr/local/etc/pkg/repos/FreeBSD-latest.conf; }; env ASSUME_ALWAYS_YES=yes pkg update -q'
-    vssh 'sh -s' < "$REPO/contrib/freebsd/setup-jails.sh"
+    vssh "PHP=${PHP:-php84} sh -s" < "$REPO/contrib/freebsd/setup-jails.sh"
     ;;
 test)
-    python3 -I "$REPO/tests/smoke.py" http://127.0.0.1:8180
-    docker run --rm --network host -v "$REPO:/src:ro" -w /src mcr.microsoft.com/playwright/python:v1.65.1-noble \
-        sh -c 'pip install -q --break-system-packages --root-user-action=ignore playwright==1.65.1 && python3 -I tests/ui.py http://127.0.0.1:8180'
-    echo "PHP messages in the jail: $(vssh 'wc -l < /jails/nsedit/var/log/php-nsedit.log')"
+    echo "== versions: $(vssh 'freebsd-version; jexec nsedit php -r "echo PHP_VERSION;"; echo; jexec pdns pdns_server --version 2>&1 | grep -o "Server [0-9.]*"' | tr '\n' ' ')"
+    exec "$REPO/contrib/vm-checks.sh" http://127.0.0.1:8180 /jails/nsedit/var/log/php-nsedit.log 10.53.0.2 "$0" "$DIR" ssh
     ;;
 *) echo "unknown command $CMD"; exit 2 ;;
 esac

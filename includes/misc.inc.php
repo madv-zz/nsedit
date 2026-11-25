@@ -51,6 +51,17 @@ if (class_exists('SQLite3') === FALSE) {
     $blocklogin = TRUE;
 }
 
+# separate packages on FreeBSD and other BSDs (php84-session, php84-filter)
+if (function_exists('session_start') === FALSE) {
+    $errormsg = "You need the PHP session extension to run nsedit";
+    $blocklogin = TRUE;
+}
+
+if (function_exists('filter_var') === FALSE) {
+    $errormsg = "You need the PHP filter extension to run nsedit";
+    $blocklogin = TRUE;
+}
+
 if (function_exists('openssl_random_pseudo_bytes') === FALSE) {
     $errormsg = "You need PHP compiled with openssl to run nsedit";
     $blocklogin = TRUE;
