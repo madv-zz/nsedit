@@ -23,6 +23,7 @@ env:
   PHPSTAN_SHA256: 4b3ed7850a20b092331bd1040e4f54a1d3c0559b4cf006431073997ebcb4324b
   PLAYWRIGHT_IMAGE: mcr.microsoft.com/playwright/python:v1.65.1-noble
   PLAYWRIGHT_VERSION: 1.65.1
+  SHELLCHECK_IMAGE: koalaman/shellcheck:v0.10.0
   RUFF_VERSION: 0.17.4
   BANDIT_VERSION: 1.9.4
 
@@ -72,7 +73,7 @@ jobs:
           for f in $git_files; do php -l "$f" >/dev/null || exit 1; done; echo "$(echo $git_files | wc -w) files OK"'
 
   quality:
-    name: quality (phpstan, ruff)
+    name: quality (phpstan, ruff, shellcheck)
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -87,8 +88,11 @@ jobs:
             php -d memory_limit=1G /phpstan.phar analyse --no-progress --error-format=github
       - name: ruff (lint and complexity) on the Python scripts
         run: |
-          pipx run "ruff==${RUFF_VERSION}" check tests ci
-          pipx run "ruff==${RUFF_VERSION}" check --select C901 --config 'lint.mccabe.max-complexity=25' tests ci
+          pipx run "ruff==${RUFF_VERSION}" check tests ci contrib
+          pipx run "ruff==${RUFF_VERSION}" check --select C901 --config 'lint.mccabe.max-complexity=25' tests ci contrib
+      - name: shellcheck on the shell scripts
+        run: |
+          git ls-files -z '*.sh' | xargs -0 docker run --rm -v "$PWD:/src:ro" -w /src "$SHELLCHECK_IMAGE" -S warning
 
   bandit:
     name: bandit (unsafe Python code)
@@ -97,7 +101,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - run: pipx run "bandit==${BANDIT_VERSION}" -q -r tests ci --severity-level medium --confidence-level medium
+      - run: pipx run "bandit==${BANDIT_VERSION}" -q -r tests ci contrib --severity-level medium --confidence-level medium
 
   docker-config:
     name: docker-config (trivy config)
