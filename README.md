@@ -3,13 +3,13 @@ About this fork
 
 This is a maintained fork of [tuxis-ie/nsedit](https://github.com/tuxis-ie/nsedit),
 made to run on **PHP 8.4 and newer** (tested with 8.4, 8.5 and 8.6) and **PowerDNS
-Authoritative 5.0**. It is not affiliated with or endorsed by Tuxis; all credits for
+Authoritative 4.9, 5.0 and 5.1**. It is not affiliated with or endorsed by Tuxis; all credits for
 the original work go to its authors (see [Credits](#credits)).
 
 Main changes compared to upstream (details in [CHANGELOG.md](CHANGELOG.md)):
 
 * Works on PHP 8.4, 8.5 and 8.6 (mcrypt replaced by openssl, no deprecations or warnings).
-* Works with PowerDNS 5: cloning zones and "Set PTR Record" fixed.
+* Works with PowerDNS 4.9, 5.0 and 5.1: cloning zones and "Set PTR Record" fixed.
 * Security fixes: access check on every zone action, CSRF on the password form, escaping.
 * Docker Compose stack (PowerDNS + nsedit) and a smoke test.
 * Tuxis branding (logo and screenshots) removed.
@@ -30,7 +30,9 @@ queries on 127.0.0.1:1053 (change `WEB_BIND`, `WEB_PORT`, `DNS_BIND` and
 network. Log in with `NSEDIT_ADMIN_USER` / `NSEDIT_ADMIN_PASSWORD`; these are only
 used on the first start, after that the users live in the `nsedit-data` volume.
 
-Choose another PHP version with `PHP_VERSION=8.6` in `.env`.
+Choose another PHP version with `PHP_VERSION=8.6` and another PowerDNS version with
+`PDNS_IMAGE=powerdns/pdns-auth-49:4.9.18` in `.env` (remove the `pdns-data` volume when you go back to an
+older PowerDNS: `docker compose down -v`).
 
 Test a running instance with `python3 tests/smoke.py` (it creates and removes
 `*.example.` test zones, so don't run it against production). PHP warnings and
@@ -81,7 +83,7 @@ CI runs on every pull request, on `master` and weekly, each check as its own job
 | `quality` | PHPStan level 5 (existing findings in `phpstan-baseline.neon`), ruff on the Python scripts |
 | `bandit` | unsafe code in the Python scripts |
 | `docker-config` | trivy config on the Dockerfiles and compose file |
-| `tests` | Docker stack with PowerDNS 5 on PHP 8.4, 8.5 and 8.6: `tests/smoke.py`, browser test `tests/ui.py` (Playwright/Chromium, fails on any JavaScript error or console warning), no PHP warnings, DNS answers, internal files not served |
+| `tests` | Docker stack on PHP 8.4, 8.5 and 8.6 × PowerDNS 4.9, 5.0 and 5.1: `tests/smoke.py`, browser test `tests/ui.py` (Playwright/Chromium, fails on any JavaScript error or console warning), no PHP warnings, DNS answers, internal files not served |
 | `docker-images` | trivy image (CRITICAL) on the built images |
 | `check` | sums up the jobs above; required for merging |
 
@@ -100,7 +102,7 @@ Requirements
 * php sqlite3
 * php curl
 * php with openssl support
-* PowerDNS with the JSON-api enabled. Version 4.4.0 or greater (tested with 5.0)
+* PowerDNS Authoritative with the JSON-api enabled, version 4.4.0 or greater (tested with 4.9, 5.0 and 5.1; see [CHANGELOG.md](CHANGELOG.md#tested-versions))
 
 Installing
 ==========
