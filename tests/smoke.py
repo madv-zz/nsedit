@@ -28,6 +28,9 @@ CLONE = 'clone.example.'
 REV4 = '2.0.192.in-addr.arpa.'
 REV6 = '8.b.d.0.1.0.0.2.ip6.arpa.'
 SLAVE = 'slave.example.'
+# reverse zones made by 'Add reverse zones' for 198.51.100.0/23 and 2001:db8:100::/47
+REVP = ['100.51.198.in-addr.arpa.', '101.51.198.in-addr.arpa.',
+        '0.0.1.0.8.b.d.0.1.0.0.2.ip6.arpa.', '1.0.1.0.8.b.d.0.1.0.0.2.ip6.arpa.']
 CUST = 'customer@example.com'
 
 
@@ -86,7 +89,7 @@ a = Client()
 expect('login admin', a.login(env['NSEDIT_ADMIN_USER'], env['NSEDIT_ADMIN_PASSWORD']))
 
 # clean up a previous run
-for z in (Z, CLONE, REV4, REV6, SLAVE):
+for z in [Z, CLONE, REV4, REV6, SLAVE] + REVP:
     a.j('zones.php', 'delete', {'id': z})
 for u in a.j('users.php', 'list').get('Records', []):
     if u['emailaddress'] == CUST:
@@ -140,6 +143,18 @@ check('create slave zone', a.j('zones.php', 'create', {'name': SLAVE, 'kind': 'S
 check('list slave zones', a.j('zones.php', 'listslaves'))
 check('change slave masters', a.j('zones.php', 'update', {'id': SLAVE, 'masters': '192.0.2.55'}))
 
+# reverse zones for prefixes
+NS2 = ['ns1.example.com.', 'ns2.example.com.']
+rz = check('reverse zones for two prefixes', a.j('zones.php', 'createreverse', {
+    'prefixes': '198.51.100.0/23\n2001:db8:100::/47', 'kind': 'Master', 'account': 'admin', 'nameserver[]': NS2}))
+expect('... all four zones created', sorted(rz.get('Record', {}).get('created', [])) == sorted(REVP), rz)
+expect('... with the given nameservers', sorted(r[2] for r in records(a, REVP[0], 'NS')) == NS2)
+rz = check('reverse zones again: existing ones left alone', a.j('zones.php', 'createreverse', {
+    'prefixes': '198.51.100.0/24, 198.51.101.0/24', 'kind': 'Master', 'nameserver[]': NS2}))
+expect('... nothing created, two skipped', rz.get('Record', {}).get('created') == [] and len(rz['Record']['skipped']) == 2, rz)
+for bad in ('198.51.100.5/24', '198.51.100.0/25', '10.0.0.0/7 nonsense', '2001:db8::/129'):
+    check('reverse zones refused: ' + bad, a.j('zones.php', 'createreverse', {'prefixes': bad, 'kind': 'Master', 'nameserver[]': NS2}), 'ERROR')
+
 # users
 check('create user', a.j('users.php', 'create', {'emailaddress': CUST, 'password': 'Customer-test-123', 'isadmin': '0'}))
 check('list users', a.j('users.php', 'list'))
@@ -162,6 +177,7 @@ check('customer: export of other zone refused', k.j('zones.php', 'export', zonei
 check('customer: edit other zone refused', k.j('zones.php', 'createrecord', {'name': 'x', 'type': 'A', 'content': '192.0.2.8'}, zoneid=Z), 'ERROR')
 check('customer: users.php refused', k.j('users.php', 'list'), 'ERROR')
 check('customer: create zone refused', k.j('zones.php', 'create', {'name': 'no.example.', 'kind': 'Master'}), 'ERROR')
+check('customer: reverse zones refused', k.j('zones.php', 'createreverse', {'prefixes': '203.0.113.0/24', 'kind': 'Master', 'nameserver[]': ['ns1.example.com.']}), 'ERROR')
 check('customer: clone zone refused', k.j('zones.php', 'clone', {'sourcename': CLONE, 'destname': 'no.example', 'kind': 'Master'}), 'ERROR')
 good = k.csrf
 k.csrf = 'wrong'
@@ -197,7 +213,7 @@ check('filter logs', a.j('logs.php', 'list', {'user': 'admin', 'entry': 'zone'})
 
 # clean up
 if not os.environ.get('KEEP'):
-    for z in (CLONE, SLAVE, REV4, REV6, Z):
+    for z in [CLONE, SLAVE, REV4, REV6, Z] + REVP:
         check('delete zone ' + z, a.j('zones.php', 'delete', {'id': z}))
     check('delete user', a.j('users.php', 'delete', {'id': uid}))
 a.req('index.php', get={'logout': 1})

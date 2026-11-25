@@ -255,6 +255,16 @@ without the fix (except the SOA serial of reverse zones, see below).
 - `vm.sh` installs NetBSD with anita 2.18 (NetBSD's install-test tool, tarball checked against a fixed SHA256)
   and runs the VM without IPv6 in QEMU's network (pkgsrc's CDN answers with IPv6 first and downloads hung).
 
+## Step 13: add reverse zones for a prefix
+
+- Zones tab, toolbar button **Add reverse zones** (admins only): give one or more prefixes, such as
+  `185.69.204.0/22` or `2a06:900::/29`, and nsedit creates every reverse zone that covers them, with the
+  chosen account, type and nameservers. IPv4 zones are /8, /16 or /24 (a /22 gives four /24 zones), IPv6
+  zones end on a nibble (a /29 gives eight /32 zones). Zones that already exist are left alone; a wrong
+  prefix (host bits set, IPv4 longer than /24, not an address) stops the request before anything is made.
+  At most 256 zones per request. A dialog lists what was created, skipped or failed.
+- New action `zones.php?action=createreverse`; covered by the smoke test and the browser test.
+
 ## Where it is now
 
 - Runs on PHP 8.4, 8.5 and 8.6 with PowerDNS Authoritative 4.9, 5.0 and 5.1: the smoke test and the

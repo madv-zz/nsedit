@@ -51,6 +51,7 @@ Features
 * Import BIND- or AXFR-style dumps of your existing zones
 * Add/remove zones and records
 * Clone zones
+* Add all reverse zones for an IPv4/IPv6 prefix in one go (e.g. 192.0.2.0/22 gives four /24 zones)
 * Show the DNSsec details of a zone
 * Multiple user support
 * Allow logging of all actions in NSEdit, including exporting the log in JSON-format
