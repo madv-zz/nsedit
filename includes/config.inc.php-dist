@@ -37,13 +37,13 @@ $default_admin_password = "admin";
 $templates = array();
 /*
 $templates[] = array(
-    'name' => 'Tuxis',
+    'name' => 'Example',
     'owner' => 'username', # Set to 'public' to make it available to all users
     'records' => array(
     array(
         'name'      => '',
         'type'      => 'MX',
-        'content'   => '200 mx2.tuxis.nl.'),
+        'content'   => '200 mx2.example.com.'),
     array(
         'name'      => '',
         'type'      => 'A',
@@ -66,4 +66,4 @@ $defaults['disabled'] = false;                          # Default disabled state
 
 ## UI Options
 $menutype = 'horizontal'; # horizontal|vertical - use a horizontal or vertical menu
-$logo = 'img/nsedit.png';
+$logo = 'img/nsedit.svg';
