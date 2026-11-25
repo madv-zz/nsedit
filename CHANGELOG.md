@@ -4,18 +4,18 @@ What changed in this fork, from where it started to where it is now.
 
 ## Tested versions
 
-Every pull request, every change on `master` and a weekly run test nsedit (`tests/smoke.py` and the browser
-test `tests/ui.py`) on every combination of:
+| Operating system | Web server | PHP | PowerDNS Authoritative | How |
+|---|---|---|---|---|
+| Debian 13 (trixie), in Docker on Ubuntu 24.04 | Apache 2.4 + mod_php | 8.4, 8.5, 8.6 | 4.9.18, 5.0.8, 5.1.5 | CI on every pull request, every change on `master` and weekly: all 9 combinations |
+| FreeBSD 15.1-RELEASE, in two jails | nginx 1.30.7 + php-fpm | 8.4.27 | 5.1.5 | by hand, in a VM (`contrib/freebsd/vm.sh`) |
 
-| Component | Versions | Note |
-|---|---|---|
-| PHP | 8.4, 8.5, 8.6 | FreeBSD, OpenBSD and pkgsrc ship all three (2026-11-25) |
-| PowerDNS Authoritative | 4.9.18, 5.0.8, 5.1.5 | FreeBSD and OpenBSD ship 5.1.5, pkgsrc 5.1.2 to 5.1.5 (2026-11-25) |
-| jQuery / jQuery UI / jTable | 3.7.1 / 1.14.2 / 2.6.0 | bundled in `vendor/` |
+Both run `tests/smoke.py` and the browser test `tests/ui.py`; CI also checks for PHP warnings, DNS answers and
+that internal files are not served. Bundled in `vendor/`: jQuery 3.7.1, jQuery UI 1.14.2, jTable 2.6.0.
 
-The tests run in Docker on Linux (the `php:<version>-apache` and `powerdns/pdns-auth-*` images). Also tested,
-by hand, on **FreeBSD 15.1** in jails with nginx + php-fpm 8.4 and PowerDNS 5.1.5 (`contrib/freebsd/`).
-nsedit itself only needs PHP with curl, sqlite3 and openssl, and the PowerDNS API.
+Not tested, but available as packages (2026-11-25): OpenBSD (PHP 8.3 to 8.6, PowerDNS 5.1.5) and NetBSD /
+pkgsrc (PHP 8.2 to 8.5, PowerDNS 5.1.2 to 5.1.5). FreeBSD ships PHP 8.2 to 8.6 and PowerDNS 5.1.5 (in the
+*latest* package repository; it was missing from *quarterly*). nsedit itself only needs PHP with curl,
+sqlite3 and openssl, and the PowerDNS API.
 
 ## Starting point: upstream `master` at `7a18c00` (2025-03-11)
 
