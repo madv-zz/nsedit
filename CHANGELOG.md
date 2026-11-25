@@ -7,14 +7,14 @@ What changed in this fork, from where it started to where it is now.
 | Operating system | Web server | PHP | PowerDNS Authoritative | How |
 |---|---|---|---|---|
 | Debian 13 (trixie), in Docker on Ubuntu 24.04 | Apache 2.4 + mod_php | 8.4, 8.5, 8.6 | 4.9.18, 5.0.8, 5.1.5 | CI on every pull request, every change on `master` and weekly: all 9 combinations |
-| FreeBSD 15.1-RELEASE, in two jails | nginx 1.30.7 + php-fpm | 8.4.27, 8.5.12, 8.6.0RC3 | 5.1.5 | by hand, in a VM: `contrib/freebsd/vm.sh test` runs the same checks as CI |
+| FreeBSD 15.1-RELEASE, in two jails | nginx 1.30.7 + php-fpm | 8.4.27, 8.5.12, 8.6.0RC3 | 5.1.5 | by hand, in a VM (`contrib/freebsd/vm.sh`) |
+| OpenBSD 8.0, httpd + php-fpm chrooted in `/var/www` | httpd (base) + php-fpm | 8.3.37, 8.4.28, 8.5.13 | 5.1.5 | by hand, in a VM (`contrib/openbsd/vm.sh`) |
 
-Both run `tests/smoke.py`, the browser test `tests/ui.py`, a check for PHP warnings, DNS answers and that
-internal files are not served. FreeBSD ships PHP 8.6 as a release candidate so far; PowerDNS 4.9 and 5.0 are not
-packaged there. Bundled in `vendor/`: jQuery 3.7.1, jQuery UI 1.14.2, jTable 2.6.0.
+All run the same checks (`contrib/vm-checks.sh` for the VMs): `tests/smoke.py`, the browser test `tests/ui.py`, no
+PHP warnings, DNS answers and that internal files are not served. On the BSDs only PowerDNS 5.1.5 is packaged;
+FreeBSD ships PHP 8.6 as a release candidate so far, OpenBSD 8.0 not at all. Bundled in `vendor/`: jQuery 3.7.1, jQuery UI 1.14.2, jTable 2.6.0.
 
-Not tested, but available as packages (2026-11-25): OpenBSD (PHP 8.3 to 8.6, PowerDNS 5.1.5) and NetBSD /
-pkgsrc (PHP 8.2 to 8.5, PowerDNS 5.1.2 to 5.1.5). FreeBSD ships PHP 8.2 to 8.6 and PowerDNS 5.1.5 (in the
+Not tested yet: NetBSD 11.1 / pkgsrc (PHP 8.2 to 8.5, PowerDNS 5.1.2 to 5.1.5 as packages, 2026-11-25). FreeBSD ships PHP 8.2 to 8.6 and PowerDNS 5.1.5 (in the
 *latest* package repository; it was missing from *quarterly*). nsedit itself only needs PHP with curl,
 sqlite3 and openssl, and the PowerDNS API.
 
@@ -189,7 +189,11 @@ without the fix (except the SOA serial of reverse zones, see below).
 - Found on FreeBSD too: nsedit needed the PHP `ctype` extension since step 1 (`ctype_digit()` for the TTL),
   a separate package there; replaced by a regular expression. nsedit now also refuses to log in with a clear
   message when the `session` or `filter` extension is missing (separate packages on BSD).
-- `vm.sh test` runs the same checks as the CI tests job; tested with PHP 8.4, 8.5 and 8.6 on FreeBSD.
+- `contrib/vm-checks.sh`: the checks of the CI tests job for a VM; tested with PHP 8.4, 8.5 and 8.6 on FreeBSD.
+- **OpenBSD 8.0** (`contrib/openbsd/`): httpd and php-fpm from the base system chrooted in `/var/www`, PowerDNS
+  5.1.5 with sqlite; installed with autoinstall(8) over the network in a VM, from an empty directory to all checks
+  passed in 2.5 minutes; PHP 8.3, 8.4 and 8.5 pass without changes to nsedit.
+- CI quality job: shellcheck on all shell scripts, ruff and bandit also on `contrib/`.
 - Note for FreeBSD: `dns/powerdns` was missing from the quarterly package repository of FreeBSD 15; the
   latest repository has 5.1.5. Install PHP from one repository: with both enabled, pkg silently skipped an
   extension whose versions differed between them.
