@@ -10,10 +10,16 @@ Main changes compared to upstream (details in [CHANGELOG.md](CHANGELOG.md)):
 
 * Works on PHP 8.4, 8.5 and 8.6 (mcrypt replaced by openssl, no deprecations or warnings).
 * Works with PowerDNS 4.9, 5.0 and 5.1: cloning zones and "Set PTR Record" fixed.
-* Security fixes: access check on every zone action, CSRF on the password form, escaping.
-* Docker Compose stack (PowerDNS + nsedit) and a smoke test.
+* Security fixes: access check on every zone action, CSRF on the password form, escaping; current jQuery and jQuery UI.
+* Reverse DNS helpers: add the reverse zones for a prefix in one go, move records when a zone is split off,
+  and add PTR records by IP address (see [Features](#features)).
+* Light and dark theme.
+* Tested on FreeBSD, OpenBSD and NetBSD, with reference setups in `contrib/` (see [below](#freebsd-openbsd-and-netbsd)).
+* Docker Compose stack (PowerDNS + nsedit), a smoke test and a browser test.
 * Tuxis branding (logo and screenshots) removed.
-* CI on every pull request and weekly: secrets, vulnerabilities, PHP lint and static analysis, the Docker stack on PHP 8.4, 8.5 and 8.6. See [Development](#development).
+* CI on every pull request and weekly: secrets, vulnerabilities, PHP lint and static analysis, the Docker stack on
+  PHP 8.4, 8.5 and 8.6 with PowerDNS 4.9, 5.0 and 5.1. See [Development](#development).
+* Releases with a SHA256 checksum and a build provenance attestation, see [Installing](#installing).
 
 Running with Docker
 ===================
@@ -119,9 +125,8 @@ are in [contrib/freebsd/](contrib/freebsd/README.md), [contrib/openbsd/](contrib
 Requirements
 ============
 * A webserver running PHP 8.4 or newer (tested with 8.4, 8.5 and 8.6)
-* php sqlite3
-* php curl
-* php with openssl support
+* PHP extensions curl, sqlite3, session, filter and openssl (on the BSDs session and filter are separate
+  packages, e.g. `php84-session` and `php84-filter`; nsedit tells you which one is missing)
 * PowerDNS Authoritative with the JSON-api enabled, version 4.4.0 or greater (tested with 4.9, 5.0 and 5.1; see [CHANGELOG.md](CHANGELOG.md#tested-versions))
 
 Installing
@@ -131,9 +136,8 @@ Installing
   [Releases](https://github.com/madv-zz/nsedit/releases), check it (`sha256sum -c`, and optionally
   `gh attestation verify nsedit-<version>.tar.gz -R madv-zz/nsedit`) and unpack it where nsedit will run.
   The tarball holds nsedit and the BSD reference setups in `contrib/`, without the development and CI files.
-* Via Git
-    -  Run git clone in the directory where you want to run nsedit from
-    : ```git clone https://github.com/madv-zz/nsedit.git```
+* Via Git: run `git clone https://github.com/madv-zz/nsedit.git` in the directory where you want to run
+  nsedit from (`master` is the development branch; check out a tag such as `v2.2.0` for a release).
 
 * Copy ```includes/config.inc.php-dist``` to ```includes/config.inc.php``` and edit config.inc.php to your needs.
 
@@ -152,12 +156,8 @@ api=yes
 api-key=SomeRandomString
 ```
 
-Special note for Ubuntu Xenial Xerus 16.04 users:
-Default `pdns` package included in Ubuntu repositories has the version of 4.0.0-alpha2 and *nsedit v1.0* doesn't work with it due to API incompatibility.
-
-If your PowerDNS version is not the latest one, please consider adding PowerDNS repository to your system.
-
-Detailed instructions for adding repository are available at http://repo.powerdns.com/
+nsedit needs PowerDNS 4.4 or newer. If your distribution ships an older version, use the PowerDNS
+repositories: https://repo.powerdns.com/
 
 
 Credits
